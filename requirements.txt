@@ -1,0 +1,12 @@
+fsspec
+requests
+s3fs>=0.5
+dask
+loguru
+pandas
+progressbar2
+typer
+zarr
+xarray
+lxml
+fastparquet
