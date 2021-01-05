@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 from typing import List
+import textwrap
 
 import fsspec
 from loguru import logger
@@ -96,13 +97,13 @@ def create_request_estimate(
     )
     if response:
         table_name = f"{stream_dct['reference_designator']}-{stream_dct['method']}-{stream_dct['stream']}"
-        text = """
+        text = textwrap.dedent("""\
         *************************************
         {0}
         -------------------------------------
         {1}
         *************************************
-        """.format
+        """).format
         if "requestUUID" in response:
             m = estimate_size_and_time(response)
             request_dict["params"].update({"estimate_only": "false"})
@@ -115,9 +116,7 @@ def create_request_estimate(
             )
             logger.debug(text(table_name, m))
         else:
-            m = f"""
-            Skipping... Data not available.
-            """
+            m = "Skipping... Data not available."
             request_dict.update({"stream": stream_dct, "estimated": response})
             logger.debug(text(table_name, m))
 
