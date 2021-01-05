@@ -1,7 +1,10 @@
 import datetime
 import math
 
+import requests
 from loguru import logger
+from lxml import etree
+from siphon.catalog import TDSCatalog
 
 from ..config import STORAGE_OPTIONS
 
@@ -57,6 +60,77 @@ def parse_uframe_response(resp):
         }
     logger.warning(resp)
     return None
+
+
+def parse_dataset_element(d, namespace):
+    dataset_dict = {}
+    for i in d.getiterator():
+        clean_tag = i.tag.replace('{' + namespace + '}', '')
+        if clean_tag == 'dataset':
+            dataset_dict = dict(**i.attrib)
+
+        if clean_tag == 'dataSize':
+            dataset_dict = dict(
+                data_size=float(i.text), **i.attrib, **dataset_dict
+            )
+
+        if clean_tag == 'date':
+            dataset_dict = dict(date_modified=i.text, **dataset_dict)
+    return dataset_dict
+
+
+def parse_response_thredds(response):
+    stream_name = response['stream']['table_name']
+    catalog = TDSCatalog(
+        response['result']['thredds_catalog'].replace('.html', '.xml')
+    )
+    catalog_dict = {
+        'stream_name': stream_name,
+        'catalog_url': catalog.catalog_url,
+        'base_tds_url': catalog.base_tds_url,
+        'async_url': response['result']['download_catalog'],
+    }
+    req = requests.get(catalog.catalog_url)
+    catalog_root = etree.fromstring(req.content)
+
+    namespaces = {}
+    for k, v in catalog_root.nsmap.items():
+        if k is None:
+            namespaces['cat'] = v
+        else:
+            namespaces[k] = v
+    dataset_elements = catalog_root.xpath(
+        '/cat:catalog/cat:dataset/cat:dataset', namespaces=namespaces
+    )
+    datasets = [
+        parse_dataset_element(i, namespaces['cat']) for i in dataset_elements
+    ]
+    catalog_dict['datasets'] = datasets
+
+    return catalog_dict
+
+
+def filter_and_parse_datasets(cat):
+    import re
+
+    stream_cat = cat.copy()
+    name = stream_cat['stream_name']
+    filtered_datasets = []
+    for d in stream_cat['datasets']:
+        m = re.search(
+            r'(deployment(\d{4})_(%s)_(\d{4}\d{2}\d{2}T\d+.\d+)-(\d{4}\d{2}\d{2}T\d+.\d+).nc)'
+            % (name),
+            str(d['name']),
+        )
+        if m:
+            file_name, dep_num, ref, start, end = m.groups()
+            dataset = dict(
+                deployment=int(dep_num), start_ts=start, end_ts=end, **d
+            )
+            filtered_datasets.append(dataset)
+
+    stream_cat['datasets'] = filtered_datasets
+    return stream_cat
 
 
 def seconds_to_date(num):
