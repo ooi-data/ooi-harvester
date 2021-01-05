@@ -1,3 +1,4 @@
+import os
 import datetime
 import math
 
@@ -6,7 +7,7 @@ from loguru import logger
 from lxml import etree
 from siphon.catalog import TDSCatalog
 
-from ..config import STORAGE_OPTIONS
+from ..config import STORAGE_OPTIONS, HARVEST_CACHE_BUCKET
 
 
 def estimate_size_and_time(raw):
@@ -131,6 +132,39 @@ def filter_and_parse_datasets(cat):
 
     stream_cat['datasets'] = filtered_datasets
     return stream_cat
+
+
+def setup_etl(
+    stream, source='ooinet', target_bucket='s3://ooi-data'
+):
+    name = stream['stream_name']
+
+    harvest_location = os.path.expanduser('~/.ooi-harvester')
+
+    # Setup Local temp folder for netcdf
+    temp_fold = os.path.join(harvest_location, name)
+    if not os.path.exists(os.path.dirname(temp_fold)):
+        os.mkdir(os.path.dirname(temp_fold))
+
+    if not os.path.exists(temp_fold):
+        os.mkdir(temp_fold)
+
+    # Setup S3 Bucket
+    temp_s3_fold = f"s3://temp-ooi-data/{name}.zarr"
+    final_s3_fold = f"{target_bucket}/{name}"
+
+    if source == 'ooinet':
+        retrieved_dt = stream['result']['request_dt']
+    else:
+        retrieved_dt = stream['retrieved_dt']
+        del stream['retrieved_dt']
+    return dict(
+        temp_fold=temp_fold,
+        temp_bucket=temp_s3_fold,
+        final_bucket=final_s3_fold,
+        retrieved_dt=retrieved_dt,
+        **stream,
+    )
 
 
 def seconds_to_date(num):

@@ -1,11 +1,7 @@
 import typer
 import textwrap
 
-from .producer import (
-    perform_request,
-    perform_estimates,
-)
-from .utils.compute import map_concurrency
+from .producer import fetch_harvest
 
 app = typer.Typer()
 
@@ -16,14 +12,9 @@ def producer(
     refresh: bool = False,
     existing_data_path: str = "s3://ooi-data",
 ):
-    success_requests = perform_estimates(
+    request_responses = fetch_harvest(
         instrument_rd, refresh, existing_data_path
     )
-    request_responses = []
-    if len(success_requests) > 0:
-        request_responses = [
-            perform_request(req, refresh) for req in success_requests
-        ]
 
     if len(request_responses) == 0:
         typer.echo("WARNING: No requests to be fetched.")

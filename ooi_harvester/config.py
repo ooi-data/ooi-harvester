@@ -19,4 +19,4 @@ STORAGE_OPTIONS = {
 }
 
 METADATA_BUCKET = 's3://ooi-metadata'
-PRODUCER_BUCKET = 's3://io2data-harvest-cache'
+HARVEST_CACHE_BUCKET = 's3://io2data-harvest-cache'

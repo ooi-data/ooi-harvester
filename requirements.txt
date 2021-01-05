@@ -12,3 +12,5 @@ lxml
 fastparquet
 pygithub
 siphon
+prefect
+rechunker

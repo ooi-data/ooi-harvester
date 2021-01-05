@@ -8,7 +8,7 @@ from loguru import logger
 import pandas as pd
 import dask.dataframe as dd
 
-from ..config import METADATA_BUCKET, PRODUCER_BUCKET
+from ..config import METADATA_BUCKET, HARVEST_CACHE_BUCKET
 from ..utils.conn import request_data, check_zarr, send_request
 from ..utils.parser import (
     estimate_size_and_time,
@@ -154,9 +154,10 @@ def perform_request(req, refresh=False):
     datestr = f"{TODAY_DATE:%Y%m}"
     fname = f"{name}__{datestr}__{refresh_text}"
     fs = fsspec.filesystem(
-        PRODUCER_BUCKET.split(":")[0], **get_storage_options(PRODUCER_BUCKET)
+        HARVEST_CACHE_BUCKET.split(":")[0],
+        **get_storage_options(HARVEST_CACHE_BUCKET),
     )
-    fpath = os.path.join(PRODUCER_BUCKET, 'ooinet-requests', fname)
+    fpath = os.path.join(HARVEST_CACHE_BUCKET, 'ooinet-requests', fname)
 
     if fs.exists(fpath):
         logger.info(
@@ -192,3 +193,15 @@ def perform_estimates(instrument_rd, refresh, existing_data_path):
     estimated_dict = _sort_and_filter_estimated_requests(estimated_requests)
     success_requests = estimated_dict['success_requests']
     return success_requests
+
+
+def fetch_harvest(instrument_rd, refresh, existing_data_path):
+    success_requests = perform_estimates(
+        instrument_rd, refresh, existing_data_path
+    )
+    request_responses = []
+    if len(success_requests) > 0:
+        request_responses = [
+            perform_request(req, refresh) for req in success_requests
+        ]
+    return request_responses
