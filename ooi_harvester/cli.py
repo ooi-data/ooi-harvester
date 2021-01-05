@@ -2,10 +2,8 @@ import typer
 import textwrap
 
 from .producer import (
-    fetch_instrument_streams_list,
-    create_request_estimate,
     perform_request,
-    _sort_and_filter_estimated_requests,
+    perform_estimates,
 )
 from .utils.compute import map_concurrency
 
@@ -18,17 +16,9 @@ def producer(
     refresh: bool = False,
     existing_data_path: str = "s3://ooi-data",
 ):
-    streams_list = fetch_instrument_streams_list(instrument_rd)
-    estimated_requests = map_concurrency(
-        create_request_estimate,
-        streams_list,
-        func_kwargs=dict(
-            refresh=refresh, existing_data_path=existing_data_path
-        ),
-        max_workers=50,
+    success_requests = perform_estimates(
+        instrument_rd, refresh, existing_data_path
     )
-    estimated_dict = _sort_and_filter_estimated_requests(estimated_requests)
-    success_requests = estimated_dict['success_requests']
     request_responses = []
     if len(success_requests) > 0:
         request_responses = [

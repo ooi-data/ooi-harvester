@@ -15,6 +15,7 @@ from ..utils.parser import (
     get_storage_options,
     parse_uframe_response,
 )
+from ..utils.compute import map_concurrency
 
 
 def fetch_instrument_streams_list(refdes_list=[]) -> List[dict]:
@@ -176,3 +177,18 @@ def perform_request(req, refresh=False):
             json.dump(response, f)
 
     return response
+
+
+def perform_estimates(instrument_rd, refresh, existing_data_path):
+    streams_list = fetch_instrument_streams_list(instrument_rd)
+    estimated_requests = map_concurrency(
+        create_request_estimate,
+        streams_list,
+        func_kwargs=dict(
+            refresh=refresh, existing_data_path=existing_data_path
+        ),
+        max_workers=50,
+    )
+    estimated_dict = _sort_and_filter_estimated_requests(estimated_requests)
+    success_requests = estimated_dict['success_requests']
+    return success_requests
