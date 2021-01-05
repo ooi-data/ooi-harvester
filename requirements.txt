@@ -10,3 +10,5 @@ zarr
 xarray
 lxml
 fastparquet
+pygithub
+siphon
