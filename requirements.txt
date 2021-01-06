@@ -14,3 +14,4 @@ pygithub
 siphon
 prefect
 rechunker
+git+https://github.com/pangeo-forge/pangeo-forge.git@master
