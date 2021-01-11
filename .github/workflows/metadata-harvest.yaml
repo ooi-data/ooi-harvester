@@ -9,6 +9,9 @@ jobs:
   harvest:
     name: metadata-harvest
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
     env:
       OOI_USERNAME: ${{ secrets.OOI_USERNAME }}
       OOI_TOKEN: ${{ secrets.OOI_TOKEN }}
@@ -18,6 +21,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Cache conda
+        uses: actions/cache@v2
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ hashFiles('.ci/metadata/harvest-environment.yml') }}
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v2
         with:
@@ -25,11 +34,10 @@ jobs:
           auto-activate-base: false
           activate-environment: meta_env
           environment-file: .ci/metadata/harvest-environment.yml
+          use-only-tar-bz2: true
       - name: Install package
-        shell: bash -l {0}
         run: |
           pip install .
       - name: Run Harvest
-        shell: bash -l {0}
         run: |
           ooi-harvester metadata create --cava-assets --ooinet-inventory --ooi-streams --global-ranges
