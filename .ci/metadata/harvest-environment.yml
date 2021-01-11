@@ -1,0 +1,26 @@
+name: meta_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - pip
+  - fsspec
+  - requests
+  - s3fs>=0.5
+  - dask
+  - loguru
+  - pandas
+  - progressbar2
+  - typer
+  - zarr
+  - xarray
+  - lxml
+  - gspread==3.6
+  - fastparquet
+  - pygithub
+  - siphon
+  - prefect
+  - rechunker
+  - pip:
+    - git+https://github.com/pangeo-forge/pangeo-forge.git@0.1.0

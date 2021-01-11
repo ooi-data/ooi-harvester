@@ -1,0 +1,35 @@
+name: Metadata Harvest
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  harvest:
+    name: metadata-harvest
+    runs-on: ubuntu-latest
+    env:
+      OOI_USERNAME: ${{ secrets.OOI_USERNAME }}
+      OOI_TOKEN: ${{ secrets.OOI_TOKEN }}
+      AWS_KEY: ${{ secrets.AWS_KEY }}
+      AWS_SECRET: ${{ secrets.AWS_SECRET }}
+      GOOGLE_SERVICE_JSON: ${{ secrets.GOOGLE_SERVICE_JSON }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          auto-activate-base: false
+          activate-environment: meta_env
+          environment-file: .ci/metadata/harvest-environment.yml
+      - name: Install package
+        shell: bash -l {0}
+        run: |
+          pip install .
+      - name: Run Harvest
+        shell: bash -l {0}
+        run: |
+          ooi-harvester metadata create --cava-assets --ooinet-inventory --ooi-streams --global-ranges
