@@ -313,7 +313,11 @@ def write_parquet(df, s3path, refresh=True):
         logger.info(f"Deleting {s3path}...")
         FS.delete(s3path, recursive=True)
     logger.info(f"Writing to s3://{s3path}...")
-    df.to_parquet(f"s3://{s3path}", write_index=False)
+    df.to_parquet(
+        f"s3://{s3path}",
+        write_index=False,
+        storage_options=STORAGE_OPTIONS['aws'],
+    )
 
 
 def df2parquet(df, table_name, bucket):
