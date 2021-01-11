@@ -2,8 +2,10 @@ import typer
 import textwrap
 
 from .producer import fetch_harvest
+from .metadata import cli as metadata_cli
 
 app = typer.Typer()
+app.add_typer(metadata_cli.app, name="metadata")
 
 
 @app.command()

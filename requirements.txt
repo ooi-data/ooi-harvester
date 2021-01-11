@@ -9,6 +9,7 @@ typer
 zarr
 xarray
 lxml
+gspread==3.6
 fastparquet
 pygithub
 siphon

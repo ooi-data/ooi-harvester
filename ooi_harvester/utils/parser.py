@@ -63,6 +63,58 @@ def parse_uframe_response(resp):
     return None
 
 
+def param_change(name):
+    """
+    Method to accomodate for param change.
+    https://oceanobservatories.org/renaming-data-stream-parameters/
+    """
+
+    if name == 'pressure_depth':
+        return 'pressure'
+    else:
+        return name
+
+
+def parse_param_dict(param_dict):
+    unit = None
+    if "unit" in param_dict:
+        if isinstance(param_dict["unit"], dict):
+            if "value" in param_dict["unit"]:
+                unit = param_dict["unit"]["value"]
+    product_type = None
+    if "data_product_type" in param_dict:
+        if isinstance(param_dict["data_product_type"], dict):
+            if "value" in param_dict["data_product_type"]:
+                product_type = param_dict["data_product_type"]["value"]
+    return {
+        "pid": param_dict["id"],
+        "reference_designator": param_change(param_dict["name"]),
+        "parameter_name": param_dict["display_name"],
+        "netcdf_name": param_dict["netcdf_name"],
+        "standard_name": param_dict["standard_name"],
+        "description": param_dict["description"],
+        "unit": unit,
+        "data_level": param_dict['data_level'],
+        "data_product_type": product_type,
+        "last_updated": datetime.datetime.utcnow().isoformat(),
+    }
+
+
+def parse_global_range_dataframe(global_ranges):
+    """ Cleans up the global ranges dataframe """
+    global_df = global_ranges[global_ranges.columns[:-3]]
+    global_df.columns = [
+        "reference_designator",
+        "parameter_id_r",
+        "parameter_id_t",
+        "global_range_min",
+        "global_range_max",
+        "data_level",
+        "units",
+    ]
+    return global_df
+
+
 def parse_dataset_element(d, namespace):
     dataset_dict = {}
     for i in d.getiterator():
@@ -134,9 +186,7 @@ def filter_and_parse_datasets(cat):
     return stream_cat
 
 
-def setup_etl(
-    stream, source='ooinet', target_bucket='s3://ooi-data'
-):
+def setup_etl(stream, source='ooinet', target_bucket='s3://ooi-data'):
     name = stream['stream_name']
 
     harvest_location = os.path.expanduser('~/.ooi-harvester')
@@ -175,3 +225,19 @@ def seconds_to_date(num):
 def get_storage_options(path):
     if path.startswith("s3://"):
         return STORAGE_OPTIONS["aws"]
+
+
+def get_items(keys, orig_dict):
+    new_dict = {}
+    for k, v in orig_dict.items():
+        if k in keys:
+            new_dict[k] = v
+    return new_dict
+
+
+def rename_item(old_key, new_key, orig_dict):
+    new_dict = orig_dict.copy()
+    if old_key in new_dict:
+        new_dict.update({new_key: new_dict[old_key]})
+        del new_dict[old_key]
+    return new_dict

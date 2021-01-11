@@ -7,11 +7,16 @@ import zarr
 import fsspec
 import requests
 import xarray as xr
+import pandas as pd
 from lxml import html
 import progressbar
 
 from ..config import OOI_USERNAME, OOI_TOKEN, BASE_URL, M2M_PATH
-from ..utils.parser import seconds_to_date
+from ..utils.parser import (
+    seconds_to_date,
+    parse_global_range_dataframe,
+    parse_param_dict,
+)
 
 SESSION = requests.Session()
 a = requests.adapters.HTTPAdapter(
@@ -26,9 +31,7 @@ def check_zarr(dest_fold, storage_options={}):
     if fsmap.get('.zmetadata') is not None:
         zstore = fsmap.fs.get_mapper(os.path.join(dest_fold, 'time'))
         zarray = zarr.open_array(store=zstore)
-        last_time = seconds_to_date(
-            zarray[-1]
-        )
+        last_time = seconds_to_date(zarray[-1])
         return True, last_time
     else:
         return False, None
@@ -61,29 +64,29 @@ def get_vocab():
     return send_request(url)
 
 
-def param_change(name):
-    """ 
-    Method to accomodate for param change.
-    https://oceanobservatories.org/renaming-data-stream-parameters/
-    """
-
-    if name == 'pressure_depth':
-        return 'pressure'
-    else:
-        return name
+def get_global_ranges():
+    logger.info("Fetching global ranges ...")
+    url = "https://raw.githubusercontent.com/ooi-integration/qc-lookup/master/data_qc_global_range_values.csv"  # noqa
+    return parse_global_range_dataframe(pd.read_csv(url))
 
 
 def get_stream(stream):
     url = f"{BASE_URL}/{M2M_PATH}/12575/stream/byname/{stream}"
     stream_dict = send_request(url)
     return {
-        "id": stream_dict["id"],
+        "stream_id": stream_dict["id"],
+        "stream_rd": stream,
         "stream_type": stream_dict["stream_type"]["value"],
         "stream_content": stream_dict["stream_content"]["value"],
-        "parameters": [
-            param_change(p["name"]) for p in stream_dict["parameters"]
-        ],
+        "parameters": [parse_param_dict(p) for p in stream_dict["parameters"]],
+        "last_updated": datetime.datetime.utcnow().isoformat(),
     }
+
+
+def get_param_by_id(param_id):
+    url = f"{BASE_URL}/{M2M_PATH}/12575/parameter/{param_id}"
+    param_dict = send_request(url)
+    return param_dict
 
 
 def split_refdes(refdes):
@@ -94,7 +97,12 @@ def split_refdes(refdes):
 def retrieve_deployments(refdes):
     dep_port = 12587
     reflist = list(split_refdes(refdes))
-    base_url_list = [BASE_URL, M2M_PATH, str(dep_port), "events/deployment/inv"]
+    base_url_list = [
+        BASE_URL,
+        M2M_PATH,
+        str(dep_port),
+        "events/deployment/inv",
+    ]
     dep_list = send_request("/".join(base_url_list + reflist))
     deployments = []
     if isinstance(dep_list, list):
