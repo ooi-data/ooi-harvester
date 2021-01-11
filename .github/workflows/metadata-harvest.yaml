@@ -13,6 +13,7 @@ on:
 jobs:
   harvest:
     runs-on: ubuntu-20.04
+    if: "!contains(github.event.head_commit.message, '[ci skip]')"
     defaults:
       run:
         shell: bash -l {0}
