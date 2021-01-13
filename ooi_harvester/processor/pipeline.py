@@ -5,12 +5,12 @@ import textwrap
 
 import fsspec
 from loguru import logger
-from pangeo_forge.pipelines.base import AbstractPipeline
 from prefect import Flow, task
 # from prefect.environments import DaskKubernetesEnvironment
 # from prefect.environments.storage import Docker
 
 from . import process_dataset, finalize_zarr
+from ..core import AbstractPipeline
 from ..utils.parser import (
     parse_response_thredds,
     filter_and_parse_datasets,
