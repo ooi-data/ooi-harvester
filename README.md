@@ -14,3 +14,7 @@ conda activate harvest-dev
 
 pip install -e .
 ```
+
+## Active Harvest
+
+![Metadata Harvest](https://github.com/ooi-data/ooi-harvester/workflows/Metadata%20Harvest/badge.svg)
