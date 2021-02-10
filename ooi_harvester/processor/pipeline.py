@@ -2,12 +2,15 @@ import os
 import datetime
 from typing import List
 import textwrap
+import json
 
 import fsspec
-from loguru import logger
+
+# from loguru import logger
+import prefect
 from prefect import Flow, task
-# from prefect.environments import DaskKubernetesEnvironment
-# from prefect.environments.storage import Docker
+from prefect.storage import Docker
+from prefect.run_configs import KubernetesRun
 
 from . import process_dataset, finalize_zarr
 from ..core import AbstractPipeline
@@ -15,41 +18,61 @@ from ..utils.parser import (
     parse_response_thredds,
     filter_and_parse_datasets,
     get_storage_options,
-    setup_etl
+    setup_etl,
 )
+import time
 
 
 @task
-def processing_task(dataset_list, nc_files_dict, zarr_exists, refresh):
+def processing_task(
+    dataset_list, nc_files_dict, zarr_exists, refresh, test_run=False
+):
+    logger = prefect.context.get("logger")
     name = nc_files_dict['stream']['table_name']
     logger.info(f"Processing {name}.")
     start_time = datetime.datetime.utcnow()
-    if not zarr_exists or refresh:
-        for idx, d in enumerate(dataset_list):
-            is_first = False
-            if idx == 0:
-                is_first = True
-            process_dataset(d, nc_files_dict, is_first=is_first)
-        logger.info(f"Finalizing data stream {name}.")
-        final_path = finalize_zarr(
-            source_zarr=nc_files_dict['temp_bucket'],
-            final_zarr=nc_files_dict['final_bucket'],
-        )
+    if test_run:
+        logger.info("RUNNING TEST RUN ... IDLING FOR 5 Seconds")
+        logger.info(json.dumps(nc_files_dict))
+        time.sleep(5)
+        time_elapsed = datetime.datetime.utcnow() - start_time
+        logger.info(f"DONE. Time elapsed: {str(time_elapsed)}")
     else:
-        final_path = nc_files_dict['final_bucket']
-    time_elapsed = datetime.datetime.utcnow() - start_time
-    logger.info(f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}")
+        if not zarr_exists or refresh:
+            for idx, d in enumerate(dataset_list):
+                is_first = False
+                if idx == 0:
+                    is_first = True
+                process_dataset(d, nc_files_dict, is_first=is_first)
+            logger.info(f"Finalizing data stream {name}.")
+            final_path = finalize_zarr(
+                source_zarr=nc_files_dict['temp_bucket'],
+                final_zarr=nc_files_dict['final_bucket'],
+            )
+        else:
+            final_path = nc_files_dict['final_bucket']
+        time_elapsed = datetime.datetime.utcnow() - start_time
+        logger.info(f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}")
 
 
 class OOIStreamPipeline(AbstractPipeline):
     def __init__(
-        self, response, refresh=True, existing_data_path='s3://ooi-data'
+        self,
+        response,
+        refresh=True,
+        existing_data_path='s3://ooi-data',
+        storage_options={},
+        run_config_options={},
+        test_run=False
     ):
         self.response = response
         self.refresh = refresh
         self.nc_files_dict = None
         self.__existing_data_path = existing_data_path
         self.fs = None
+        self.__flow_so = storage_options
+        self.__flow_rco = run_config_options
+        self.__test_run = test_run
 
         self._setup_pipeline()
 
@@ -92,12 +115,12 @@ class OOIStreamPipeline(AbstractPipeline):
         return [self.nc_files_dict['final_bucket']]
 
     @property
-    def environment(self):
-        return None
+    def storage(self):
+        return Docker(**self.__flow_so)
 
     @property
-    def storage(self):
-        return None
+    def run_config(self):
+        return KubernetesRun(**self.__flow_rco)
 
     @property
     def flow(self):
@@ -107,13 +130,14 @@ class OOIStreamPipeline(AbstractPipeline):
             )
 
         with Flow(
-            self.name, storage=self.storage, environment=self.environment
+            self.name, storage=self.storage, run_config=self.run_config
         ) as _flow:
             processing_task(
                 self.sources,
                 self.nc_files_dict,
                 self.zarr_exists,
                 self.refresh,
+                self.__test_run
             )
 
         return _flow

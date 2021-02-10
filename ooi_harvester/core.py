@@ -49,9 +49,12 @@ from pathlib import Path
 from typing import List
 
 from prefect import Flow
-from prefect.environments import DaskKubernetesEnvironment, Environment
-from prefect.environments.storage import Storage
-from prefect.environments.storage.github import GitHub
+from prefect.storage import GitHub
+from prefect.run_configs import KubernetesRun
+
+# Types
+from prefect.storage import Storage
+from prefect.run_configs import RunConfig
 
 HERE = Path(__file__).parent.absolute()
 
@@ -77,7 +80,7 @@ def finalize_flow(cls):
         result = orig_getattribute(self, name)
         if name == "flow":
             result.storage = self.storage
-            result.environment = self.environment
+            result.run_config = self.run_config
         return result
 
     cls.__getattribute__ = new_getattribute
@@ -112,42 +115,31 @@ class AbstractPipeline(ABC):
         pass
 
     @property
-    def environment(self) -> Environment:
-        """
-        The pipeline runtime environment.
-
-        Returns
-        -------
-        prefect.environments.Environment
-            An instance of a Prefect Environment. By default
-            a :class:`prefect.environments.DaskKubernetesEnvironment`
-            is used.
-        """
-        scheduler_spec_file = str(HERE / "job.yaml")
-        worker_spec_file = str(HERE / "worker_pod.yaml")
-
-        environment = DaskKubernetesEnvironment(
-            min_workers=1,
-            max_workers=30,
-            scheduler_spec_file=scheduler_spec_file,
-            worker_spec_file=worker_spec_file,
-            metadata=dict(image="pangeoforge/default-image"),
-        )
-        return environment
-
-    @property
     def storage(self) -> Storage:
         """
         The pipeline storage.
 
         Returns
         -------
-        prefect.environments.storage.Storage
-            By default a :class:`prefect.environments.storage.github.GitHub`
+        prefect.storage.Storage
+            By default a :class:`prefect.storage.GitHub`
             environment is used with ``self.repo`` as the repository
             and ``self.path`` as the path.
         """
         return GitHub(self.repo, path=self.path)
+
+    @property
+    def run_config(self) -> RunConfig:
+        """
+        The pipeline run configuration.
+
+        Returns
+        -------
+        prefect.run_config.RunConfig
+            By default a :class:`prefect.run_config.KubernetesRun`
+            run configuration is used.
+        """
+        return KubernetesRun()
 
     def _generate_run(self, source):
         name = type(self).__name__
