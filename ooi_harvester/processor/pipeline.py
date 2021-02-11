@@ -11,6 +11,8 @@ import prefect
 from prefect import Flow, task
 from prefect.storage import Docker
 from prefect.run_configs import KubernetesRun
+from prefect.storage import Storage
+from prefect.run_configs import RunConfig
 
 from . import process_dataset, finalize_zarr
 from ..core import AbstractPipeline
@@ -70,9 +72,14 @@ class OOIStreamPipeline(AbstractPipeline):
         self.nc_files_dict = None
         self.__existing_data_path = existing_data_path
         self.fs = None
+
+        self._flow = None
         self.__flow_so = storage_options
         self.__flow_rco = run_config_options
         self.__test_run = test_run
+        # By default use Docker and Kubernetes for flows
+        self._storage = Docker(**self.__flow_so)
+        self._run_config = KubernetesRun(**self.__flow_rco)
 
         self._setup_pipeline()
 
@@ -116,11 +123,30 @@ class OOIStreamPipeline(AbstractPipeline):
 
     @property
     def storage(self):
-        return Docker(**self.__flow_so)
+        return self._storage
+    
+    @storage.setter
+    def storage(self, s):
+        if (s is not None) and (not isinstance(s, Storage)):
+            raise TypeError(f"{type(s)} is not a valid storage type")
+
+        self._storage = s
+        if self._flow:
+            self._flow.storage = self._storage
+
 
     @property
     def run_config(self):
-        return KubernetesRun(**self.__flow_rco)
+        return self._run_config
+
+    @run_config.setter
+    def run_config(self, rc):
+        if (rc is not None) and (not isinstance(rc, RunConfig)):
+            raise TypeError(f"{type(rc)} is not a valid run configuration type")
+
+        self._run_config = rc
+        if self._flow:
+            self._flow.storage = self._run_config
 
     @property
     def flow(self):
@@ -140,7 +166,8 @@ class OOIStreamPipeline(AbstractPipeline):
                 self.__test_run
             )
 
-        return _flow
+        self._flow = _flow
+        return self._flow
 
     def __check_target(self):
         zpath, ext = os.path.splitext(self.nc_files_dict['final_bucket'])
