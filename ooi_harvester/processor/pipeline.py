@@ -24,6 +24,14 @@ from ..utils.parser import (
 )
 import time
 
+RUN_CONFIG_TYPES = {
+    'kubernetes': KubernetesRun
+}
+
+STORAGE_TYPES = {
+    'docker': Docker
+}
+
 
 @task
 def processing_task(
@@ -45,7 +53,8 @@ def processing_task(
                 is_first = False
                 if idx == 0:
                     is_first = True
-                process_dataset(d, nc_files_dict, is_first=is_first)
+                process_dataset(d, nc_files_dict, 
+                is_first=is_first, logger=logger)
             logger.info(f"Finalizing data stream {name}.")
             final_path = finalize_zarr(
                 source_zarr=nc_files_dict['temp_bucket'],
@@ -63,6 +72,8 @@ class OOIStreamPipeline(AbstractPipeline):
         response,
         refresh=True,
         existing_data_path='s3://ooi-data',
+        run_config_type=None,
+        storage_type=None,
         storage_options={},
         run_config_options={},
         test_run=False
@@ -77,9 +88,22 @@ class OOIStreamPipeline(AbstractPipeline):
         self.__flow_so = storage_options
         self.__flow_rco = run_config_options
         self.__test_run = test_run
+
+
         # By default use Docker and Kubernetes for flows
-        self._storage = Docker(**self.__flow_so)
-        self._run_config = KubernetesRun(**self.__flow_rco)
+        self._run_config = run_config_type
+        self._storage = storage_type
+        if run_config_type is not None:
+            if run_config_type not in RUN_CONFIG_TYPES:
+                UserWarning(f"{run_config_type} currently not available. Defaulting to None")
+            else:
+                self._run_config = RUN_CONFIG_TYPES[run_config_type](**self.__flow_rco)
+        
+        if storage_type is not None:
+            if storage_type not in STORAGE_TYPES:
+                UserWarning(f"{storage_type} currently not available. Defaulting to None")
+            else:
+                self._storage = STORAGE_TYPES[storage_type](**self.__flow_so)
 
         self._setup_pipeline()
 

@@ -25,7 +25,7 @@ from .utils import (
 from ..utils.parser import get_storage_options
 
 
-def process_dataset(d, nc_files_dict, is_first=True):
+def process_dataset(d, nc_files_dict, is_first=True, logger=logger):
     name = nc_files_dict['stream']['table_name']
     dataset_name = d['name']
     zarr_file = nc_files_dict['temp_bucket']
@@ -35,6 +35,7 @@ def process_dataset(d, nc_files_dict, is_first=True):
         f"*** {name} ({d['deployment']}) | {d['start_ts']} - {d['end_ts']} ***"
     )
     downloaded = False
+    ds = None
     while not downloaded:
         try:
             ncpath = _download(
@@ -56,17 +57,20 @@ def process_dataset(d, nc_files_dict, is_first=True):
         except Exception as e:
             logger.warning(e)
 
-    mod_ds, enc = chunk_ds(ds)
+    if isinstance(ds, xr.Dataset):
+        mod_ds, enc = chunk_ds(ds)
 
-    if is_first:
-        # TODO: Like the _prepare_ds_to_append need to check on the dims and len for all variables
-        mod_ds.to_zarr(
-            store, consolidated=True, compute=True, mode='w', encoding=enc
-        )
+        if is_first:
+            # TODO: Like the _prepare_ds_to_append need to check on the dims and len for all variables
+            mod_ds.to_zarr(
+                store, consolidated=True, compute=True, mode='w', encoding=enc
+            )
+        else:
+            append_to_zarr(mod_ds, store, enc, logger=logger)
+
+        delete_dataset(mod_ds)
     else:
-        append_to_zarr(mod_ds, store, enc)
-
-    delete_dataset(mod_ds)
+        logger.warning("Failed pre processing ... Skipping ...")
 
 
 def preproc(ds):
@@ -215,7 +219,7 @@ def get_encoding(ds):
     return encoding
 
 
-def append_to_zarr(mod_ds, store, encoding):
+def append_to_zarr(mod_ds, store, encoding, logger=logger):
     existing_zarr = zarr.open_group(store, mode='a')
     existing_var_count = len([a for a in existing_zarr.array_keys()])
     to_append_var_count = len(mod_ds.variables)
