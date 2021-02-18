@@ -27,7 +27,7 @@ def get_repo(name):
 
 
 def write_process_status_json(status_json, branch="main"):
-    repo = get_repo()
+    repo = get_repo(status_json['data_stream'])
     message = create_process_commit_message(status_json)
     repo.create_file(
         PROCESS_STATUS_PATH_STR, message, yaml.dump(status_json), branch=branch
@@ -44,7 +44,7 @@ def create_process_commit_message(status_json):
 
 
 def write_request_status_json(status_json, branch="main"):
-    repo = get_repo()
+    repo = get_repo(status_json['data_stream'])
     message = create_request_commit_message(status_json)
     repo.create_file(
         REQUEST_STATUS_PATH_STR, message, yaml.dump(status_json), branch=branch
