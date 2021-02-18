@@ -29,17 +29,18 @@ def process_status_update(flow, old_state, new_state):
         status_json["status"] = "success"
         status_json["last_updated"] = now
 
-    commit_message = PROCESS_COMMIT_MESSAGE_TEMPLATE(
-        status_emoji=STATUS_EMOJIS[status_json["status"]],
-        status=status_json["status"],
-        request_dt=now,
-    )
-    repo.update_file(
-        path=contents.path,
-        message=commit_message,
-        content=yaml.dump(status_json),
-        sha=contents.sha,
-        branch=GH_MAIN_BRANCH,
-    )
+    if status_json["status"] != "pending":
+        commit_message = PROCESS_COMMIT_MESSAGE_TEMPLATE(
+            status_emoji=STATUS_EMOJIS[status_json["status"]],
+            status=status_json["status"],
+            request_dt=now,
+        )
+        repo.update_file(
+            path=contents.path,
+            message=commit_message,
+            content=yaml.dump(status_json),
+            sha=contents.sha,
+            branch=GH_MAIN_BRANCH,
+        )
 
     return new_state
