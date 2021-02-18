@@ -29,9 +29,24 @@ def get_repo(name):
 def write_process_status_json(status_json, branch="main"):
     repo = get_repo(status_json['data_stream'])
     message = create_process_commit_message(status_json)
-    repo.create_file(
-        PROCESS_STATUS_PATH_STR, message, yaml.dump(status_json), branch=branch
-    )
+    try:
+        contents = repo.get_contents(PROCESS_STATUS_PATH_STR, ref=branch)
+        repo.update_file(
+            path=contents.path,
+            message=message,
+            content=yaml.dump(status_json),
+            sha=contents.sha,
+            branch=branch,
+        )
+    except Exception as e:
+        _, response = e.args
+        if response['message'] == 'Not Found':
+            repo.create_file(
+                PROCESS_STATUS_PATH_STR,
+                message,
+                yaml.dump(status_json),
+                branch=branch,
+            )
 
 
 def create_process_commit_message(status_json):
@@ -46,9 +61,24 @@ def create_process_commit_message(status_json):
 def write_request_status_json(status_json, branch="main"):
     repo = get_repo(status_json['data_stream'])
     message = create_request_commit_message(status_json)
-    repo.create_file(
-        REQUEST_STATUS_PATH_STR, message, yaml.dump(status_json), branch=branch
-    )
+    try:
+        contents = repo.get_contents(REQUEST_STATUS_PATH_STR, ref=branch)
+        repo.update_file(
+            path=contents.path,
+            message=message,
+            content=yaml.dump(status_json),
+            sha=contents.sha,
+            branch=branch,
+        )
+    except Exception as e:
+        _, response = e.args
+        if response['message'] == 'Not Found':
+            repo.create_file(
+                REQUEST_STATUS_PATH_STR,
+                message,
+                yaml.dump(status_json),
+                branch=branch,
+            )
 
 
 def create_request_commit_message(status_json):
