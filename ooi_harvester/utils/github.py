@@ -7,6 +7,7 @@ from ..config import (
     RESPONSE_PATH_STR,
     GH_DATA_ORG,
     GH_PAT,
+    GH_MAIN_BRANCH,
     PROCESS_STATUS_PATH_STR,
     REQUEST_STATUS_PATH_STR,
     COMMIT_MESSAGE_TEMPLATE,
@@ -26,7 +27,7 @@ def get_repo(name):
     return repo
 
 
-def write_process_status_json(status_json, branch="main"):
+def write_process_status_json(status_json, branch=GH_MAIN_BRANCH):
     repo = get_repo(status_json['data_stream'])
     message = create_process_commit_message(status_json)
     try:
@@ -58,7 +59,7 @@ def create_process_commit_message(status_json):
     )
 
 
-def write_request_status_json(status_json, branch="main"):
+def write_request_status_json(status_json, branch=GH_MAIN_BRANCH):
     repo = get_repo(status_json['data_stream'])
     message = create_request_commit_message(status_json)
     try:

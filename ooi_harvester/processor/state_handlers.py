@@ -1,27 +1,23 @@
-import os
 import datetime
 import yaml
 
-from github import Github
-
 from ..config import (
-    GH_PAT,
-    GH_DATA_ORG,
     PROCESS_STATUS_PATH_STR,
     PROCESS_COMMIT_MESSAGE_TEMPLATE,
     STATUS_EMOJIS,
     GH_MAIN_BRANCH,
 )
+from ..utils.github import get_repo
 
 
 def process_status_update(flow, old_state, new_state):
-    gh = Github(GH_PAT)
     _ = old_state
-    repo = gh.get_repo(os.path.join(GH_DATA_ORG, flow.name))
+    repo = get_repo(flow.name)
     contents = repo.get_contents(PROCESS_STATUS_PATH_STR, ref=GH_MAIN_BRANCH)
     status_json = yaml.load(contents.decoded_content, Loader=yaml.SafeLoader)
     now = datetime.datetime.utcnow().isoformat()
     if new_state.is_failed():
+        # TODO: Also create issue when failed!
         status_json["status"] = "failed"
         status_json["last_updated"] = now
     elif new_state.is_successful():

@@ -24,13 +24,9 @@ from ..utils.parser import (
 )
 import time
 
-RUN_CONFIG_TYPES = {
-    'kubernetes': KubernetesRun
-}
+RUN_CONFIG_TYPES = {'kubernetes': KubernetesRun}
 
-STORAGE_TYPES = {
-    'docker': Docker
-}
+STORAGE_TYPES = {'docker': Docker}
 
 
 @task
@@ -53,8 +49,9 @@ def processing_task(
                 is_first = False
                 if idx == 0:
                     is_first = True
-                process_dataset(d, nc_files_dict, 
-                is_first=is_first, logger=logger)
+                process_dataset(
+                    d, nc_files_dict, is_first=is_first, logger=logger
+                )
             logger.info(f"Finalizing data stream {name}.")
             final_path = finalize_zarr(
                 source_zarr=nc_files_dict['temp_bucket'],
@@ -76,7 +73,8 @@ class OOIStreamPipeline(AbstractPipeline):
         storage_type=None,
         storage_options={},
         run_config_options={},
-        test_run=False
+        test_run=False,
+        state_handlers=[]
     ):
         self.response = response
         self.refresh = refresh
@@ -89,19 +87,26 @@ class OOIStreamPipeline(AbstractPipeline):
         self.__flow_rco = run_config_options
         self.__test_run = test_run
 
+        self.__state_handlers = state_handlers
 
         # By default use Docker and Kubernetes for flows
         self._run_config = run_config_type
         self._storage = storage_type
         if run_config_type is not None:
             if run_config_type not in RUN_CONFIG_TYPES:
-                UserWarning(f"{run_config_type} currently not available. Defaulting to None")
+                UserWarning(
+                    f"{run_config_type} currently not available. Defaulting to None"
+                )
             else:
-                self._run_config = RUN_CONFIG_TYPES[run_config_type](**self.__flow_rco)
-        
+                self._run_config = RUN_CONFIG_TYPES[run_config_type](
+                    **self.__flow_rco
+                )
+
         if storage_type is not None:
             if storage_type not in STORAGE_TYPES:
-                UserWarning(f"{storage_type} currently not available. Defaulting to None")
+                UserWarning(
+                    f"{storage_type} currently not available. Defaulting to None"
+                )
             else:
                 self._storage = STORAGE_TYPES[storage_type](**self.__flow_so)
 
@@ -148,7 +153,7 @@ class OOIStreamPipeline(AbstractPipeline):
     @property
     def storage(self):
         return self._storage
-    
+
     @storage.setter
     def storage(self, s):
         if (s is not None) and (not isinstance(s, Storage)):
@@ -158,7 +163,6 @@ class OOIStreamPipeline(AbstractPipeline):
         if self._flow:
             self._flow.storage = self._storage
 
-
     @property
     def run_config(self):
         return self._run_config
@@ -166,7 +170,9 @@ class OOIStreamPipeline(AbstractPipeline):
     @run_config.setter
     def run_config(self, rc):
         if (rc is not None) and (not isinstance(rc, RunConfig)):
-            raise TypeError(f"{type(rc)} is not a valid run configuration type")
+            raise TypeError(
+                f"{type(rc)} is not a valid run configuration type"
+            )
 
         self._run_config = rc
         if self._flow:
@@ -180,14 +186,17 @@ class OOIStreamPipeline(AbstractPipeline):
             )
 
         with Flow(
-            self.name, storage=self.storage, run_config=self.run_config
+            self.name,
+            storage=self.storage,
+            run_config=self.run_config,
+            state_handlers=self.__state_handlers,
         ) as _flow:
             processing_task(
                 self.sources,
                 self.nc_files_dict,
                 self.zarr_exists,
                 self.refresh,
-                self.__test_run
+                self.__test_run,
             )
 
         self._flow = _flow
