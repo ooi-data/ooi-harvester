@@ -1,5 +1,6 @@
 import os
 import subprocess
+from ..config import RESPONSE_PATH_STR, GH_DATA_ORG
 
 
 def commit(
@@ -34,7 +35,7 @@ def get_status_json(table_name, request_dt, status):
     status_json['last_request'] = request_dt + 'Z'
     status_json[
         'response'
-    ] = f"https://raw.githubusercontent.com/ooi-data/{table_name}/main/{RESPONSE_PATH_STR}"
+    ] = f"https://raw.githubusercontent.com/{GH_DATA_ORG}/{table_name}/main/{RESPONSE_PATH_STR}"  # noqa
     return status_json
 
 
