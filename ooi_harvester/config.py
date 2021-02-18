@@ -20,3 +20,20 @@ STORAGE_OPTIONS = {
 
 METADATA_BUCKET = 's3://ooi-metadata'
 HARVEST_CACHE_BUCKET = 's3://io2data-harvest-cache'
+
+# Github
+GH_PAT = os.environ.get('GH_PAT', None)
+RESPONSE_PATH_STR = 'history/response.json'
+REQUEST_STATUS_PATH_STR = 'history/request.yaml'
+PROCESS_STATUS_PATH_STR = 'history/process.yaml'
+CONFIG_PATH_STR = 'config.yaml'
+
+COMMIT_MESSAGE_TEMPLATE = (
+    "{status_emoji} Data request [{status}] ({request_dt})".format
+)
+
+PROCESS_COMMIT_MESSAGE_TEMPLATE = (
+    "{status_emoji} Data processing [{status}] ({request_dt})".format
+)
+
+STATUS_EMOJIS = {"pending": "🔵", "failed": "🔴", "success": "🟢", "skip": "⚫️"}
