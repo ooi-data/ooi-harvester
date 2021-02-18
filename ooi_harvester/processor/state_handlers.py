@@ -1,18 +1,23 @@
+import os
 import datetime
 import yaml
+
+from github import Github
 
 from ..config import (
     PROCESS_STATUS_PATH_STR,
     PROCESS_COMMIT_MESSAGE_TEMPLATE,
     STATUS_EMOJIS,
     GH_MAIN_BRANCH,
+    GH_DATA_ORG,
+    GH_PAT
 )
-from ..utils.github import get_repo
 
 
 def process_status_update(flow, old_state, new_state):
     _ = old_state
-    repo = get_repo(flow.name)
+    gh = Github(GH_PAT)
+    repo = gh.get_repo(os.path.join(GH_DATA_ORG, flow.name))
     contents = repo.get_contents(PROCESS_STATUS_PATH_STR, ref=GH_MAIN_BRANCH)
     status_json = yaml.load(contents.decoded_content, Loader=yaml.SafeLoader)
     now = datetime.datetime.utcnow().isoformat()
