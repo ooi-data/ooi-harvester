@@ -1,6 +1,63 @@
 import os
 import subprocess
-from ..config import RESPONSE_PATH_STR, GH_DATA_ORG
+import datetime
+import yaml
+from github import Github
+from ..config import (
+    RESPONSE_PATH_STR,
+    GH_DATA_ORG,
+    GH_PAT,
+    PROCESS_STATUS_PATH_STR,
+    REQUEST_STATUS_PATH_STR,
+    COMMIT_MESSAGE_TEMPLATE,
+    PROCESS_COMMIT_MESSAGE_TEMPLATE,
+    STATUS_EMOJIS,
+)
+
+
+def get_gh():
+    gh = Github(GH_PAT)
+    return gh
+
+
+def get_repo(name):
+    gh = get_gh()
+    repo = gh.get_repo(os.path.join(GH_DATA_ORG, name))
+    return repo
+
+
+def write_process_status_json(status_json, branch="main"):
+    repo = get_repo()
+    message = create_process_commit_message(status_json)
+    repo.create_file(
+        PROCESS_STATUS_PATH_STR, message, yaml.dump(status_json), branch=branch
+    )
+
+
+def create_process_commit_message(status_json):
+    now = datetime.datetime.utcnow().isoformat()
+    return PROCESS_COMMIT_MESSAGE_TEMPLATE(
+        status_emoji=STATUS_EMOJIS[status_json['status']],
+        status=status_json['status'],
+        request_dt=now,
+    )
+
+
+def write_request_status_json(status_json, branch="main"):
+    repo = get_repo()
+    message = create_request_commit_message(status_json)
+    repo.create_file(
+        REQUEST_STATUS_PATH_STR, message, yaml.dump(status_json), branch=branch
+    )
+
+
+def create_request_commit_message(status_json):
+    now = datetime.datetime.utcnow().isoformat()
+    return COMMIT_MESSAGE_TEMPLATE(
+        status_emoji=STATUS_EMOJIS[status_json['status']],
+        status=status_json['status'],
+        request_dt=now,
+    )
 
 
 def commit(
