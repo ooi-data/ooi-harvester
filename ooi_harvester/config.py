@@ -24,6 +24,7 @@ HARVEST_CACHE_BUCKET = 's3://io2data-harvest-cache'
 # Github
 GH_PAT = os.environ.get('GH_PAT', None)
 GH_DATA_ORG = 'ooi-data'
+GH_MAIN_BRANCH = 'main'
 RESPONSE_PATH_STR = 'history/response.json'
 REQUEST_STATUS_PATH_STR = 'history/request.yaml'
 PROCESS_STATUS_PATH_STR = 'history/process.yaml'
