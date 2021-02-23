@@ -44,6 +44,16 @@ def processing_task(
         time_elapsed = datetime.datetime.utcnow() - start_time
         logger.info(f"DONE. Time elapsed: {str(time_elapsed)}")
     else:
+        # == Setup Local temp folder for netcdf ==========
+        harvest_location = os.path.expanduser('~/.ooi-harvester')
+        temp_fold = os.path.join(harvest_location, name)
+        if not os.path.exists(os.path.dirname(temp_fold)):
+            os.mkdir(os.path.dirname(temp_fold))
+        if not os.path.exists(temp_fold):
+            os.mkdir(temp_fold)
+        nc_files_dict['temp_fold'] = temp_fold
+        # =================================================
+
         if not zarr_exists or refresh:
             for idx, d in enumerate(dataset_list):
                 is_first = False
