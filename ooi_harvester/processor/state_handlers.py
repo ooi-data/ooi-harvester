@@ -17,7 +17,7 @@ from ..config import (
 from ..utils.parser import parse_exception
 
 
-def get_issue(flow_name, task_name, exc_dict):
+def get_issue(flow_name, task_name, exc_dict, now):
     issue_title = f"🛑 Processing failed: {exc_dict['type']}"
     issue_body = textwrap.dedent(
         f"""\
@@ -60,7 +60,7 @@ def process_status_update(flow, old_state, new_state):
         for task, signal in new_state.result.items():
             task_name = task.name
             exc_dict = parse_exception(signal.result)
-            issue = get_issue(flow_name, task_name, exc_dict)
+            issue = get_issue(flow_name, task_name, exc_dict, now)
             # TODO: Read assignee(s) from config
             repo.create_issue(
                 title=issue['title'],
