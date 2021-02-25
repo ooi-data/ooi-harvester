@@ -84,7 +84,7 @@ class OOIStreamPipeline(AbstractPipeline):
         storage_options={},
         run_config_options={},
         test_run=False,
-        state_handlers=[]
+        state_handlers=[],
     ):
         self.response = response
         self.refresh = refresh

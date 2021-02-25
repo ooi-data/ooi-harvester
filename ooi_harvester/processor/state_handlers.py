@@ -3,6 +3,8 @@ import datetime
 import yaml
 import textwrap
 
+from prefect.engine import state
+
 from github import Github
 
 from ..config import (
@@ -65,22 +67,23 @@ def process_status_update(flow, old_state, new_state):
     if new_state.is_failed():
         status_json["status"] = "failed"
         status_json["last_updated"] = now
-        for task, signal in new_state.result.items():
-            task_name = task.name
-            exc_dict = parse_exception(signal.result)
-            issue = get_issue(flow_name, task_name, exc_dict, now)
-            # TODO: Read assignee(s) from config
-            repo.create_issue(
-                title=issue['title'],
-                body=issue['body'],
-                assignee='lsetiawan',
-                labels=['process'],
-            )
     elif new_state.is_successful():
         status_json["status"] = "success"
         status_json["last_updated"] = now
 
-    if status_json["status"] != "pending":
+    if new_state.is_finished():
+        if isinstance(new_state, state.Failed):
+            for task, signal in new_state.result.items():
+                task_name = task.name
+                exc_dict = parse_exception(signal.result)
+                issue = get_issue(flow_name, task_name, exc_dict, now)
+                # TODO: Read assignee(s) from config
+                repo.create_issue(
+                    title=issue['title'],
+                    body=issue['body'],
+                    assignee='lsetiawan',
+                    labels=['process'],
+                )
         commit_message = PROCESS_COMMIT_MESSAGE_TEMPLATE(
             status_emoji=STATUS_EMOJIS[status_json["status"]],
             status=status_json["status"],
