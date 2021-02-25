@@ -13,6 +13,7 @@ from prefect.storage import Docker
 from prefect.run_configs import KubernetesRun
 from prefect.storage import Storage
 from prefect.run_configs import RunConfig
+from prefect.engine import signals
 
 from . import process_dataset, finalize_zarr
 from ..core import AbstractPipeline
@@ -33,44 +34,47 @@ STORAGE_TYPES = {'docker': Docker}
 def processing_task(
     dataset_list, nc_files_dict, zarr_exists, refresh, test_run=False
 ):
-    logger = prefect.context.get("logger")
-    name = nc_files_dict['stream']['table_name']
-    logger.info(f"Processing {name}.")
-    start_time = datetime.datetime.utcnow()
-    if test_run:
-        logger.info("RUNNING TEST RUN ... IDLING FOR 5 Seconds")
-        logger.info(json.dumps(nc_files_dict))
-        time.sleep(5)
-        time_elapsed = datetime.datetime.utcnow() - start_time
-        logger.info(f"DONE. Time elapsed: {str(time_elapsed)}")
-    else:
-        # == Setup Local temp folder for netcdf ==========
-        harvest_location = os.path.expanduser('~/.ooi-harvester')
-        temp_fold = os.path.join(harvest_location, name)
-        if not os.path.exists(os.path.dirname(temp_fold)):
-            os.mkdir(os.path.dirname(temp_fold))
-        if not os.path.exists(temp_fold):
-            os.mkdir(temp_fold)
-        nc_files_dict['temp_fold'] = temp_fold
-        # =================================================
-
-        if not zarr_exists or refresh:
-            for idx, d in enumerate(dataset_list):
-                is_first = False
-                if idx == 0:
-                    is_first = True
-                process_dataset(
-                    d, nc_files_dict, is_first=is_first, logger=logger
-                )
-            logger.info(f"Finalizing data stream {name}.")
-            final_path = finalize_zarr(
-                source_zarr=nc_files_dict['temp_bucket'],
-                final_zarr=nc_files_dict['final_bucket'],
-            )
+    try:
+        logger = prefect.context.get("logger")
+        name = nc_files_dict['stream']['table_name']
+        logger.info(f"Processing {name}.")
+        start_time = datetime.datetime.utcnow()
+        if test_run:
+            logger.info("RUNNING TEST RUN ... IDLING FOR 5 Seconds")
+            logger.info(json.dumps(nc_files_dict))
+            time.sleep(5)
+            time_elapsed = datetime.datetime.utcnow() - start_time
+            logger.info(f"DONE. Time elapsed: {str(time_elapsed)}")
         else:
-            final_path = nc_files_dict['final_bucket']
-        time_elapsed = datetime.datetime.utcnow() - start_time
-        logger.info(f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}")
+            # == Setup Local temp folder for netcdf ==========
+            harvest_location = os.path.expanduser('~/.ooi-harvester')
+            temp_fold = os.path.join(harvest_location, name)
+            if not os.path.exists(os.path.dirname(temp_fold)):
+                os.mkdir(os.path.dirname(temp_fold))
+            if not os.path.exists(temp_fold):
+                os.mkdir(temp_fold)
+            nc_files_dict['temp_fold'] = temp_fold
+            # =================================================
+
+            if not zarr_exists or refresh:
+                for idx, d in enumerate(dataset_list):
+                    is_first = False
+                    if idx == 0:
+                        is_first = True
+                    process_dataset(
+                        d, nc_files_dict, is_first=is_first, logger=logger
+                    )
+                logger.info(f"Finalizing data stream {name}.")
+                final_path = finalize_zarr(
+                    source_zarr=nc_files_dict['temp_bucket'],
+                    final_zarr=nc_files_dict['final_bucket'],
+                )
+            else:
+                final_path = nc_files_dict['final_bucket']
+            time_elapsed = datetime.datetime.utcnow() - start_time
+            logger.info(f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}")
+    except Exception as exc:
+        raise signals.FAIL(message=str(exc), result=exc)
 
 
 class OOIStreamPipeline(AbstractPipeline):

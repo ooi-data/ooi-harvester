@@ -73,6 +73,12 @@ def process_status_update(flow, old_state, new_state):
 
     if new_state.is_finished():
         if isinstance(new_state, state.Failed):
+            repo.create_issue(
+                title=f"🛑 Processing failed {now}",
+                body=f"{new_state.result}",
+                assignee='lsetiawan',
+                labels=['process'],
+            )
             for task, signal in new_state.result.items():
                 task_name = task.name
                 exc_dict = parse_exception(signal.result)
