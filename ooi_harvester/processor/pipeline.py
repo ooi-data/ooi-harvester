@@ -16,6 +16,7 @@ from prefect.run_configs import RunConfig
 from prefect.engine import signals
 
 from . import process_dataset, finalize_zarr
+from .state_handlers import process_status_update
 from ..core import AbstractPipeline
 from ..utils.parser import (
     parse_response_thredds,
@@ -30,21 +31,23 @@ RUN_CONFIG_TYPES = {'kubernetes': KubernetesRun}
 STORAGE_TYPES = {'docker': Docker}
 
 
-@task
+# NOTE: How to pass in state_handlers for tasks?
+@task(state_handlers=[process_status_update])
 def processing_task(
     dataset_list, nc_files_dict, zarr_exists, refresh, test_run=False
 ):
+    name = nc_files_dict['stream']['table_name']
     try:
         logger = prefect.context.get("logger")
-        name = nc_files_dict['stream']['table_name']
         logger.info(f"Processing {name}.")
         start_time = datetime.datetime.utcnow()
+        final_message = ""
         if test_run:
             logger.info("RUNNING TEST RUN ... IDLING FOR 5 Seconds")
             logger.info(json.dumps(nc_files_dict))
             time.sleep(5)
             time_elapsed = datetime.datetime.utcnow() - start_time
-            logger.info(f"DONE. Time elapsed: {str(time_elapsed)}")
+            final_message = f"DONE. Time elapsed: {str(time_elapsed)}"
         else:
             # == Setup Local temp folder for netcdf ==========
             harvest_location = os.path.expanduser('~/.ooi-harvester')
@@ -72,9 +75,19 @@ def processing_task(
             else:
                 final_path = nc_files_dict['final_bucket']
             time_elapsed = datetime.datetime.utcnow() - start_time
-            logger.info(f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}")
+            final_message = (
+                f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}"
+            )
+        logger.info(final_message)
     except Exception as exc:
-        raise signals.FAIL(message=str(exc), result=exc)
+        raise signals.FAIL(
+            message=str(exc), result={'flow_name': name, 'exception': exc}
+        )
+
+    raise signals.SUCCESS(
+        message=final_message,
+        result={'flow_name': name, 'exception': None},
+    )
 
 
 class OOIStreamPipeline(AbstractPipeline):

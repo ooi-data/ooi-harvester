@@ -56,32 +56,31 @@ def get_issue(flow_name, task_name, exc_dict, now):
     return {'title': issue_title, 'body': issue_body}
 
 
-def process_status_update(flow, old_state, new_state):
-    _ = old_state
-    gh = Github(GH_PAT)
-    flow_name = flow.name
-    repo = gh.get_repo(os.path.join(GH_DATA_ORG, flow_name))
-    contents = repo.get_contents(PROCESS_STATUS_PATH_STR, ref=GH_MAIN_BRANCH)
-    status_json = yaml.load(contents.decoded_content, Loader=yaml.SafeLoader)
-    now = datetime.datetime.utcnow().isoformat()
-    if new_state.is_failed():
-        status_json["status"] = "failed"
-        status_json["last_updated"] = now
-    elif new_state.is_successful():
-        status_json["status"] = "success"
-        status_json["last_updated"] = now
+def process_status_update(task, old_state, new_state):
+    state_result = new_state.result
+    if state_result:
+        _ = old_state
+        gh = Github(GH_PAT)
+        flow_name = state_result['flow_name']
+        repo = gh.get_repo(os.path.join(GH_DATA_ORG, flow_name))
+        contents = repo.get_contents(
+            PROCESS_STATUS_PATH_STR, ref=GH_MAIN_BRANCH
+        )
+        status_json = yaml.load(
+            contents.decoded_content, Loader=yaml.SafeLoader
+        )
+        now = datetime.datetime.utcnow().isoformat()
+        if new_state.is_failed():
+            status_json["status"] = "failed"
+            status_json["last_updated"] = now
+        elif new_state.is_successful():
+            status_json["status"] = "success"
+            status_json["last_updated"] = now
 
-    if new_state.is_finished():
-        if isinstance(new_state, state.Failed):
-            repo.create_issue(
-                title=f"🛑 Processing failed {now}",
-                body=f"{new_state.result}",
-                assignee='lsetiawan',
-                labels=['process'],
-            )
-            for task, signal in new_state.result.items():
+        if new_state.is_finished():
+            if isinstance(new_state, state.Failed):
                 task_name = task.name
-                exc_dict = parse_exception(signal.result)
+                exc_dict = parse_exception(state_result['exception'])
                 issue = get_issue(flow_name, task_name, exc_dict, now)
                 # TODO: Read assignee(s) from config
                 repo.create_issue(
@@ -90,17 +89,17 @@ def process_status_update(flow, old_state, new_state):
                     assignee='lsetiawan',
                     labels=['process'],
                 )
-        commit_message = PROCESS_COMMIT_MESSAGE_TEMPLATE(
-            status_emoji=STATUS_EMOJIS[status_json["status"]],
-            status=status_json["status"],
-            request_dt=now,
-        )
-        repo.update_file(
-            path=contents.path,
-            message=commit_message,
-            content=yaml.dump(status_json),
-            sha=contents.sha,
-            branch=GH_MAIN_BRANCH,
-        )
+            commit_message = PROCESS_COMMIT_MESSAGE_TEMPLATE(
+                status_emoji=STATUS_EMOJIS[status_json["status"]],
+                status=status_json["status"],
+                request_dt=now,
+            )
+            repo.update_file(
+                path=contents.path,
+                message=commit_message,
+                content=yaml.dump(status_json),
+                sha=contents.sha,
+                branch=GH_MAIN_BRANCH,
+            )
 
     return new_state
