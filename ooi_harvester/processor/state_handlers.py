@@ -19,29 +19,37 @@ from ..utils.parser import parse_exception
 
 def get_issue(flow_name, task_name, exc_dict, now):
     issue_title = f"🛑 Processing failed: {exc_dict['type']}"
-    issue_body = textwrap.dedent(
-        f"""\
+    issue_body_template = textwrap.dedent(
+        """\
     ## Overview
 
-    `{exc_dict['type']}` found in `{task_name}` task during run ended on {now}.
+    `{exc_type}` found in `{task_name}` task during run ended on {now}.
 
     ## Details
 
     Flow name: `{flow_name}`
     Task name: `{task_name}`
-    Error type: `{exc_dict['type']}`
-    Error message: {exc_dict['value']}
+    Error type: `{exc_type}`
+    Error message: {exc_value}
 
 
     <details>
     <summary>Traceback</summary>
 
     ```
-    {exc_dict['traceback']}
+    {exc_traceback}
     ```
 
     </details>
     """
+    ).format
+    issue_body = issue_body_template(
+        exc_type=exc_dict['type'],
+        task_name=task_name,
+        now=now,
+        flow_name=flow_name,
+        exc_value=exc_dict['value'],
+        exc_traceback=exc_dict['traceback'],
     )
     return {'title': issue_title, 'body': issue_body}
 
