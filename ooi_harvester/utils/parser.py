@@ -1,6 +1,7 @@
 import os
 import datetime
 import math
+import traceback
 
 import requests
 from loguru import logger
@@ -241,3 +242,16 @@ def rename_item(old_key, new_key, orig_dict):
         new_dict.update({new_key: new_dict[old_key]})
         del new_dict[old_key]
     return new_dict
+
+
+def parse_exception(exception):
+    exc_dict = {
+        'type': type(exception).__name__,
+        'value': str(exception),
+        'traceback': "".join(
+            traceback.format_exception(
+                type(exception), exception, exception.__traceback__
+            )
+        ),
+    }
+    return exc_dict
