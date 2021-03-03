@@ -326,6 +326,11 @@ def df2parquet(df, table_name, bucket):
     write_parquet(ddf, s3path)
 
 
+def json2bucket(data, filepath, bucket):
+    with FS.open(os.path.join(bucket, filepath), mode='w') as f:
+        json.dump(data, f)
+
+
 def create_ooinet_inventory():
     """ Create instruments inventory based on what's available in ooinet """
 
