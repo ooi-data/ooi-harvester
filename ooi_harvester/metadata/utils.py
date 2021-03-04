@@ -16,6 +16,7 @@ from siphon.catalog import TDSCatalog
 
 from ..config import STORAGE_OPTIONS
 from ..utils.compute import map_concurrency
+from ..utils.encoders import NumpyEncoder
 from ..utils.conn import fetch_streams, retrieve_deployments
 from ..utils.parser import get_items, rename_item, parse_dataset_element
 
@@ -259,22 +260,19 @@ def create_catalog_item(
             cava_infrastructure.reference_designator.str.match(
                 "-".join([stream["platform_code"], stream["mooring_code"]])
             )
-        ]
-        .to_json(orient='records')
+        ].to_json(orient='records')
     )[0]
     item["instrument"] = json.loads(
         cava_instruments[
             cava_instruments.reference_designator.str.match(
                 stream["reference_designator"]
             )
-        ]
-        .to_json(orient='records')
+        ].to_json(orient='records')
     )[0]
     item["site"] = json.loads(
         cava_sites[
             cava_sites.reference_designator.str.match(stream['platform_code'])
-        ]
-        .to_json(orient='records')
+        ].to_json(orient='records')
     )[0]
     item["parameters"] = json.loads(
         cava_params[
@@ -369,7 +367,7 @@ def df2parquet(df, table_name, bucket):
 
 def json2bucket(data, filepath, bucket):
     with FS.open(os.path.join(bucket, filepath), mode='w') as f:
-        json.dump(data, f)
+        json.dump(data, f, cls=NumpyEncoder)
 
 
 def create_ooinet_inventory():
