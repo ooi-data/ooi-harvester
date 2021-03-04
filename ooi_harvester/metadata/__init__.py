@@ -98,9 +98,14 @@ def create_metadata(
         if not isinstance(streams_df, pd.DataFrame) or not isinstance(
             parameters_df, pd.DataFrame
         ):
-            _, parameters_df = get_ooi_streams_and_parameters()
+            streams_df, parameters_df = get_ooi_streams_and_parameters()
 
-        row_list = [stream for _, stream in cava_assets['streams'].iterrows()]
+        cava_streams = streams_df[
+            streams_df.reference_designator.isin(
+                cava_assets['instruments'].reference_designator.compute()
+            )
+        ]
+        row_list = [stream for _, stream in cava_streams.iterrows()]
         instrument_catalog = map_concurrency(
             create_catalog_item,
             row_list,
@@ -112,9 +117,7 @@ def create_metadata(
                 cava_assets['sites'],
             ),
         )
-        json2bucket(
-            instrument_catalog, "legacy_catalog.json", bucket
-        )
+        json2bucket(instrument_catalog, "legacy_catalog.json", bucket)
 
     if instrument_catalog_refresh:
         if not isinstance(cava_assets, dict):
