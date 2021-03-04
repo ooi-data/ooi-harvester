@@ -102,7 +102,7 @@ def create_metadata(
 
         cava_streams = streams_df[
             streams_df.reference_designator.isin(
-                cava_assets['instruments'].reference_designator.compute()
+                cava_assets['instruments'].reference_designator
             )
         ]
         row_list = [stream for _, stream in cava_streams.iterrows()]

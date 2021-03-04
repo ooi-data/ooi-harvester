@@ -260,7 +260,6 @@ def create_catalog_item(
                 "-".join([stream["platform_code"], stream["mooring_code"]])
             )
         ]
-        .compute()
         .to_json(orient='records')
     )[0]
     item["instrument"] = json.loads(
@@ -269,14 +268,12 @@ def create_catalog_item(
                 stream["reference_designator"]
             )
         ]
-        .compute()
         .to_json(orient='records')
     )[0]
     item["site"] = json.loads(
         cava_sites[
             cava_sites.reference_designator.str.match(stream['platform_code'])
         ]
-        .compute()
         .to_json(orient='records')
     )[0]
     item["parameters"] = json.loads(
