@@ -106,7 +106,7 @@ def create_metadata(
             row_list,
             func_args=(
                 parameters_df,
-                cava_assets['params'],
+                cava_assets['parameters'],
                 cava_assets['infrastructures'],
                 cava_assets['instruments'],
                 cava_assets['sites'],
