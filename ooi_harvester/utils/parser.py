@@ -97,6 +97,7 @@ def parse_param_dict(param_dict):
         "unit": unit,
         "data_level": param_dict['data_level'],
         "data_product_type": product_type,
+        "data_product_identifier": param_dict["data_product_identifier"],
         "last_updated": datetime.datetime.utcnow().isoformat(),
     }
 
