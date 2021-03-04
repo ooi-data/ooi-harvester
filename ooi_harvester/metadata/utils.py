@@ -11,6 +11,7 @@ import pandas as pd
 import datetime
 import requests
 from lxml import etree
+import numpy as np
 from siphon.catalog import TDSCatalog
 
 from ..config import STORAGE_OPTIONS
@@ -123,20 +124,24 @@ def read_cava_assets():
 
 def get_stream_only(stream):
     return rename_item(
-        "stream_id",
-        "m2m_id",
+        "method",
+        "stream_method",
         rename_item(
-            "stream_rd",
-            "reference_designator",
-            get_items(
-                [
-                    "stream_rd",
-                    "stream_method",
-                    "stream_id",
-                    "stream_type",
-                    "stream_content",
-                ],
-                stream,
+            "stream_id",
+            "m2m_id",
+            rename_item(
+                "stream",
+                "reference_designator",
+                get_items(
+                    [
+                        "stream",
+                        "method",
+                        "stream_id",
+                        "stream_type",
+                        "stream_content",
+                    ],
+                    stream,
+                ),
             ),
         ),
     )
@@ -221,25 +226,64 @@ def get_parameters(parameters, dfdict):
     )
 
 
-def create_catalog_item(stream, dfdict):
+def create_catalog_item(
+    stream,
+    parameters_df,
+    cava_params,
+    cava_infrastructure,
+    cava_instruments,
+    cava_sites,
+):
     item = {}
+    # get parameters
+    int_pids = np.array(stream['parameter_ids'].split(',')).astype(int)
+    params = json.loads(
+        parameters_df[parameters_df['pid'].isin(int_pids)].to_json(
+            orient='records'
+        )
+    )
+    param_rds = [p['reference_designator'] for p in params]
     item["data_table"] = stream["table_name"]
     item["instrument_rd"] = stream["reference_designator"]
     item["site_rd"] = stream["platform_code"]
     item["infra_rd"] = stream["mooring_code"]
     item["inst_rd"] = stream["instrument_code"]
-    item["stream_rd"] = stream["stream_rd"]
+    item["stream_rd"] = stream["stream"]
     item["stream_method"] = stream["method"]
     item["stream_type"] = stream["stream_type"]
-    item["stream"] = get_stream_only(stream)
-    item["infrastructure"] = get_infrastructure(
-        "-".join([stream["platform_code"], stream["mooring_code"]]), dfdict
+    item["stream"] = get_stream_only(stream.to_dict())
+    item["parameter_rd"] = ",".join(param_rds)
+    item["ooi_parameter_ids"] = list(int_pids)
+    item["infrastructure"] = json.loads(
+        cava_infrastructure[
+            cava_infrastructure.reference_designator.str.match(
+                "-".join([stream["platform_code"], stream["mooring_code"]])
+            )
+        ]
+        .compute()
+        .to_json(orient='records')
+    )[0]
+    item["instrument"] = json.loads(
+        cava_instruments[
+            cava_instruments.reference_designator.str.match(
+                stream["reference_designator"]
+            )
+        ]
+        .compute()
+        .to_json(orient='records')
+    )[0]
+    item["site"] = json.loads(
+        cava_sites[
+            cava_sites.reference_designator.str.match(stream['platform_code'])
+        ]
+        .compute()
+        .to_json(orient='records')
+    )[0]
+    item["parameters"] = json.loads(
+        cava_params[
+            cava_params['reference_designator'].isin(param_rds)
+        ].to_json(orient='records')
     )
-    item["instrument"] = get_instrument(stream["reference_designator"], dfdict)
-    item["site"] = get_site(stream["platform_code"], dfdict)
-    item["parameters"] = stream[
-        'parameters'
-    ]  # get_parameters(stream["parameters"], dfdict)
     return item
 
 

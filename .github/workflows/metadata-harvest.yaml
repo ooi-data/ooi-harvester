@@ -45,4 +45,4 @@ jobs:
           pip install .
       - name: Run Harvest
         run: |
-          ooi-harvester metadata create --cava-assets --ooinet-inventory --ooi-streams --global-ranges --instrument-catalog
+          ooi-harvester metadata create --cava-assets --ooinet-inventory --ooi-streams --global-ranges --instrument-catalog --legacy-catalog

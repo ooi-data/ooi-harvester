@@ -15,6 +15,7 @@ def create(
     ooinet_inventory: bool = False,
     ooi_streams: bool = False,
     instrument_catalog: bool = False,
+    legacy_catalog: bool = False,
 ):
     typer.echo("Metadata creation/refresh started.")
     start_time = datetime.datetime.utcnow()
@@ -26,6 +27,7 @@ def create(
         ooinet_inventory_refresh=ooinet_inventory,
         ooi_streams_refresh=ooi_streams,
         instrument_catalog_refresh=instrument_catalog,
+        legacy_inst_catalog_refresh=legacy_catalog,
     )
     time_elapsed = datetime.datetime.utcnow() - start_time
     typer.echo(

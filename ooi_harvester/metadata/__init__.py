@@ -16,6 +16,7 @@ from .utils import (
     get_axiom_ooi_catalog,
     write_parquet,
     write_axiom_catalog,
+    create_catalog_item,
 )
 from ..utils.conn import get_global_ranges, get_toc
 from ..utils.compute import map_concurrency
@@ -50,6 +51,7 @@ def create_metadata(
     ooinet_inventory_refresh=False,
     ooi_streams_refresh=False,
     instrument_catalog_refresh=False,
+    legacy_inst_catalog_refresh=False,
 ):
     cava_assets, streams_df, parameters_df = None, None, None
     if cava_assets_refresh:
@@ -88,6 +90,30 @@ def create_metadata(
                 bucket,
                 FS,
             ),
+        )
+    if legacy_inst_catalog_refresh:
+        if not isinstance(cava_assets, dict):
+            cava_assets = read_cava_assets()
+
+        if not isinstance(streams_df, pd.DataFrame) or not isinstance(
+            parameters_df, pd.DataFrame
+        ):
+            _, parameters_df = get_ooi_streams_and_parameters()
+
+        row_list = [stream for _, stream in cava_assets['streams'].iterrows()]
+        instrument_catalog = map_concurrency(
+            create_catalog_item,
+            row_list,
+            func_args=(
+                parameters_df,
+                cava_assets['params'],
+                cava_assets['infrastructures'],
+                cava_assets['instruments'],
+                cava_assets['sites'],
+            ),
+        )
+        json2bucket(
+            instrument_catalog, "legacy_catalog.json", bucket
         )
 
     if instrument_catalog_refresh:
