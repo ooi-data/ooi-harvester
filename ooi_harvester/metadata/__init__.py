@@ -4,6 +4,8 @@ import itertools as it
 import numpy as np
 import pandas as pd
 import dask
+import yaml
+import datetime
 
 from .utils import (
     FS,
@@ -17,9 +19,14 @@ from .utils import (
     write_parquet,
     write_axiom_catalog,
     create_catalog_item,
+    create_catalog_source,
 )
 from ..utils.conn import get_global_ranges, get_toc
 from ..utils.compute import map_concurrency
+from ..config import (
+    GH_DATA_ORG,
+    GH_PAT,
+)
 
 
 def set_stream(param, stream):
@@ -162,3 +169,58 @@ def create_metadata(
         json2bucket(
             instrument_catalog_list, "instruments_catalog.json", bucket
         )
+
+
+def create_data_catalog(
+    bucket,
+    site_branch,
+):
+    from github import Github
+
+    data_list = list(
+        filter(
+            lambda d: os.path.basename(d)
+            not in ['index.html', 'data_availability'],
+            FS.listdir(bucket, detail=False),
+        )
+    )
+    now = datetime.datetime.utcnow()
+    root_cat_dict = {
+        'name': 'OOI Data Streams Catalog',
+        'description': "OOI Data Intake Catalog. This effort is part of the University of Washington, Regional Cabled Array Value Add Project.",
+        'metadata': {
+            'version': '0.1.0',
+            'last_updated': now.isoformat(),
+            'owner': 'University of Washington, Regional Cabled Array',
+        },
+        'sources': {},
+    }
+
+    sources = map_concurrency(
+        create_catalog_source, data_list, func_args=(FS,)
+    )
+    for source in sources:
+        root_cat_dict['sources'].update(source)
+
+    gh = Github(GH_PAT)
+    site_repo_path = os.path.join(GH_DATA_ORG, f"{GH_DATA_ORG}.github.io")
+    repo = gh.get_repo(site_repo_path)
+    catalog_file_name = 'catalog.yaml'
+    try:
+        contents = repo.get_contents(catalog_file_name, ref=site_branch)
+        repo.update_file(
+            path=contents.path,
+            message=f"⬆️ Data Catalog updated at {now.isoformat()}",
+            content=yaml.dump(root_cat_dict),
+            sha=contents.sha,
+            branch=site_branch,
+        )
+    except Exception as e:
+        _, response = e.args
+        if response['message'] == 'Not Found':
+            repo.create_file(
+                catalog_file_name,
+                f"🪄 Data Catalog created at {now.isoformat()}",
+                yaml.dump(root_cat_dict),
+                branch=site_branch,
+            )

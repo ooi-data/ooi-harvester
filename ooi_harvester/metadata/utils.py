@@ -13,6 +13,8 @@ import requests
 from lxml import etree
 import numpy as np
 from siphon.catalog import TDSCatalog
+import zarr
+from s3fs.core import S3FileSystem
 
 from ..config import STORAGE_OPTIONS
 from ..utils.compute import map_concurrency
@@ -392,3 +394,92 @@ def create_ooinet_inventory():
     ]
 
     return {'iris': irisdf, 'rawdata': rawdatadf, 'm2m': m2mdf}
+
+
+def create_catalog_source(
+    data_zarr: str,
+    fs: S3FileSystem,
+) -> dict:
+    """Create a catalog dictionary entry for a zarr dataset in s3"""
+    name = os.path.basename(data_zarr)
+    # print(f"=== Creating data catalog entry for {name} ===")
+    zmeta = os.path.join(data_zarr, '.zmetadata')
+    intake_dict = {
+        'description': '',
+        'metadata': {},
+        'driver': 'zarr',
+        'args': {
+            'urlpath': '',
+            'consolidated': True,
+            'storage_options': {'anon': True},
+        },
+    }
+
+    if fs.exists(zmeta):
+        try:
+            zg = zarr.open_consolidated(fs.get_mapper(data_zarr))
+            # print("Parsing global attributes ...")
+            # Parse global attributes
+            global_attrs = zg.attrs.asdict()
+            data_meta = {
+                'id': name,
+                'owner': global_attrs['Owner'],
+                'notes': global_attrs['Notes'],
+                'reference_designator': {
+                    'site': global_attrs['subsite'],
+                    'infrastructure': "-".join(
+                        [global_attrs['subsite'], global_attrs['node']]
+                    ),
+                    'instrument': "-".join(
+                        [
+                            global_attrs['subsite'],
+                            global_attrs['node'],
+                            global_attrs['sensor'],
+                        ]
+                    ),
+                    'stream_method': global_attrs['collection_method'],
+                    'stream': global_attrs['stream'],
+                },
+            }
+            intake_dict['metadata'].update(data_meta)
+            intake_dict['description'] = global_attrs['title']
+
+            # print("Parsing parameter attributes ...")
+            # Parse parameter attributes
+            data_product_list = []
+            for k, arr in zg.arrays():
+                # Make a copy of the attributes so it doesn't modify the original
+                arr_attrs = arr.attrs.asdict().copy()
+                # For now just filter params that are L1/L2 and time
+                # Future should use the preferred_parameters
+                if (
+                    (k == "time")
+                    or ("data_product_identifier" in arr_attrs)
+                    and (
+                        "L1" in arr_attrs["data_product_identifier"]
+                        or "L2" in arr_attrs["data_product_identifier"]
+                    )
+                ):
+                    # Remove Array Dimensions key
+                    del arr_attrs['_ARRAY_DIMENSIONS']
+                    data_product_list.append(
+                        dict(reference_designator=k, **arr_attrs)
+                    )
+
+            intake_dict['metadata'].update(
+                {
+                    'data_products': sorted(
+                        data_product_list,
+                        key=lambda p: p['reference_designator'],
+                    )
+                }
+            )
+            intake_dict['args']['urlpath'] = f"s3://{data_zarr}"
+            # print("Done.")
+            return {name: intake_dict}
+        except Exception:
+            # print(f"Error found: {e}. Skipping. Done.")
+            return {}
+    else:
+        # print("No data found. Skipping. Done.")
+        return {}

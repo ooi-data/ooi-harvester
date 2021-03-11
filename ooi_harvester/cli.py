@@ -1,11 +1,29 @@
 import typer
+import sys
 import textwrap
 
 from .producer import fetch_harvest
-from .metadata import cli as metadata_cli
+from .metadata import cli as metadata_cli, create_data_catalog
 
 app = typer.Typer()
 app.add_typer(metadata_cli.app, name="metadata")
+
+
+@app.command()
+def catalog(
+    create: bool = False,
+    s3_bucket: str = "ooi-data",
+    site_branch: str = "gh-pages",
+):
+    try:
+        if create:
+            typer.echo("Creating/Updating data catalog ...")
+            create_data_catalog(s3_bucket, site_branch)
+        else:
+            typer.echo("Please add --create to run catalog creation")
+    except Exception as e:
+        typer.echo(f"Error found: {e}")
+        sys.exit(1)
 
 
 @app.command()
