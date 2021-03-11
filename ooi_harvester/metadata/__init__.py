@@ -206,21 +206,24 @@ def create_data_catalog(
     site_repo_path = os.path.join(GH_DATA_ORG, f"{GH_DATA_ORG}.github.io")
     repo = gh.get_repo(site_repo_path)
     catalog_file_name = 'catalog.yaml'
-    try:
-        contents = repo.get_contents(catalog_file_name, ref=site_branch)
+    file_contents = [
+        c
+        for c in repo.get_contents('.', ref=site_branch)
+        if c.path == catalog_file_name
+    ]
+    if len(file_contents) == 1:
+        content = file_contents[0]
         repo.update_file(
-            path=contents.path,
+            path=content.path,
             message=f"⬆️ Data Catalog updated at {now.isoformat()}",
             content=yaml.dump(root_cat_dict),
-            sha=contents.sha,
+            sha=content.sha,
             branch=site_branch,
         )
-    except Exception as e:
-        _, response = e.args
-        if response['message'] == 'Not Found':
-            repo.create_file(
-                catalog_file_name,
-                f"🪄 Data Catalog created at {now.isoformat()}",
-                yaml.dump(root_cat_dict),
-                branch=site_branch,
-            )
+    else:
+        repo.create_file(
+            catalog_file_name,
+            f"🪄 Data Catalog created at {now.isoformat()}",
+            yaml.dump(root_cat_dict),
+            branch=site_branch,
+        )
