@@ -23,6 +23,7 @@ jobs:
       AWS_KEY: ${{ secrets.AWS_KEY }}
       AWS_SECRET: ${{ secrets.AWS_SECRET }}
       GOOGLE_SERVICE_JSON: ${{ secrets.GOOGLE_SERVICE_JSON }}
+      GH_PAT: ${{ secrets.GH_PAT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
