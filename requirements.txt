@@ -7,7 +7,7 @@ pandas
 progressbar2
 typer
 zarr
-xarray
+xarray<0.18
 lxml
 gspread==3.6
 fastparquet
