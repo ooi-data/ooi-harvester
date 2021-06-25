@@ -349,10 +349,7 @@ def write_axiom_catalog(catalog, bucket, fs):
     return file_location
 
 
-def write_parquet(df, s3path, refresh=True):
-    if refresh and FS.exists(s3path):
-        logger.info(f"Deleting {s3path}...")
-        FS.delete(s3path, recursive=True)
+def write_parquet(df, s3path):
     logger.info(f"Writing to s3://{s3path}...")
     df.to_parquet(
         f"s3://{s3path}",
