@@ -221,7 +221,7 @@ def get_encoding(ds):
 
 def append_to_zarr(mod_ds, store, encoding, logger=logger):
     existing_zarr = zarr.open_group(store, mode='a')
-    existing_var_count = len([a for a in existing_zarr.array_keys()])
+    existing_var_count = len(list(existing_zarr.array_keys()))
     to_append_var_count = len(mod_ds.variables)
 
     if existing_var_count < to_append_var_count:
@@ -249,7 +249,7 @@ def delete_dataset(ds):
         os.unlink(source_file)
 
 
-def finalize_zarr(source_zarr, final_zarr, time_chunk=13106200, max_mem='2GB'):
+def finalize_zarr(source_zarr, final_zarr, time_chunk=1209600, max_mem='2GB'):
     storage_options = get_storage_options(source_zarr)
     source_store = fsspec.get_mapper(source_zarr, **storage_options)
     max_byte_size = dask.utils.parse_bytes(max_mem)
@@ -284,9 +284,13 @@ def finalize_zarr(source_zarr, final_zarr, time_chunk=13106200, max_mem='2GB'):
             group_chunk_target[k] = target_chunks
         else:
             dim_len = za.shape[0]
-            total_bytes = za.dtype.itemsize * prod(za.shape)
-            if total_bytes > max_byte_size:
-                dim_len = int(max_byte_size / za.dtype.itemsize)
+            if k != 'time':
+                total_bytes = za.dtype.itemsize * prod(za.shape)
+                if total_bytes > max_byte_size:
+                    dim_len = int(max_byte_size / za.dtype.itemsize)
+            else:
+                if dim_len > time_chunk:
+                    dim_len = time_chunk
             group_chunk_target[k] = {k: dim_len}
 
     options = {
