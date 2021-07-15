@@ -5,6 +5,7 @@ import textwrap
 import json
 
 import fsspec
+import zarr
 
 # from loguru import logger
 import prefect
@@ -59,21 +60,36 @@ def processing_task(
             nc_files_dict['temp_fold'] = temp_fold
             # =================================================
 
-            if not zarr_exists or refresh:
-                for idx, d in enumerate(dataset_list):
-                    is_first = False
-                    if idx == 0:
-                        is_first = True
-                    process_dataset(
-                        d, nc_files_dict, is_first=is_first, logger=logger
+            for idx, d in enumerate(dataset_list):
+                is_first = False
+                if idx == 0 and refresh:
+                    is_first = True
+                else:
+                    final_store = fsspec.get_mapper(
+                        nc_files_dict['final_bucket'],
+                        **get_storage_options(
+                            nc_files_dict['final_bucket']
+                        ),
                     )
-                logger.info(f"Finalizing data stream {name}.")
-                final_path = finalize_zarr(
-                    source_zarr=nc_files_dict['temp_bucket'],
-                    final_zarr=nc_files_dict['final_bucket'],
+                    temp_store = fsspec.get_mapper(
+                        nc_files_dict['temp_bucket'],
+                        **get_storage_options(
+                            nc_files_dict['temp_bucket']
+                        ),
+                    )
+                    if temp_store.fs.exists(nc_files_dict['temp_bucket']):
+                        temp_store.fs.delete(
+                            nc_files_dict['temp_bucket'], recursive=True
+                        )
+                    zarr.copy_store(final_store, temp_store)
+                process_dataset(
+                    d, nc_files_dict, is_first=is_first, logger=logger
                 )
-            else:
-                final_path = nc_files_dict['final_bucket']
+            logger.info(f"Finalizing data stream {name}.")
+            final_path = finalize_zarr(
+                source_zarr=nc_files_dict['temp_bucket'],
+                final_zarr=nc_files_dict['final_bucket'],
+            )
             time_elapsed = datetime.datetime.utcnow() - start_time
             final_message = (
                 f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}"
