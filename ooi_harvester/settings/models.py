@@ -44,8 +44,8 @@ class S3Buckets(BaseModel):
 
 
 class OOIConfig(BaseSettings):
-    username: str = Field(..., env="ooi_username")
-    token: str = Field(..., env="ooi_token")
+    username: str = Field(None, env="ooi_username")
+    token: str = Field(None, env="ooi_token")
     base_urls: dict = {
         "ooinet": "https://ooinet.oceanobservatories.org",
         "rawdata": "https://rawdata.oceanobservatories.org",
