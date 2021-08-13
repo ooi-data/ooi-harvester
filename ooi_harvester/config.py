@@ -13,8 +13,8 @@ RAW_PATH = harvest_settings.ooi_config.paths.get('raw')
 # Storage Options
 STORAGE_OPTIONS = harvest_settings.storage_options.dict()
 
-METADATA_BUCKET = harvest_settings.s3_buckets.get('metadata')
-HARVEST_CACHE_BUCKET = harvest_settings.s3_buckets.get('harvest_cache')
+METADATA_BUCKET = harvest_settings.s3_buckets.metadata
+HARVEST_CACHE_BUCKET = harvest_settings.s3_buckets.harvest_cache
 
 # Github
 GH_PAT = harvest_settings.github.pat
