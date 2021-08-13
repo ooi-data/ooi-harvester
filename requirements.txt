@@ -15,3 +15,4 @@ pygithub
 siphon
 prefect>=0.14
 rechunker
+pydantic
