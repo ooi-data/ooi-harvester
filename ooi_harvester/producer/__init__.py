@@ -17,37 +17,7 @@ from ..utils.parser import (
     parse_uframe_response,
 )
 from ..utils.compute import map_concurrency
-
-
-def fetch_instrument_streams_list(refdes_list=[]) -> List[dict]:
-    """
-    Fetch streams metadata from instrument(s).
-    Note: This function currently only get science streams.
-
-    Args:
-        refdes_list (list, str): List of reference designators
-
-    Returns:
-        list: List of streams metadata
-    """
-    streams_list = []
-    if isinstance(refdes_list, str):
-        refdes_list = refdes_list.split(',')
-
-    if len(refdes_list) > 0:
-        streamsddf = dd.read_parquet(
-            f"{METADATA_BUCKET}/ooi_streams",
-            storage_options=get_storage_options(METADATA_BUCKET),
-        )
-        # Science streams only!
-        filtered_df = streamsddf[
-            streamsddf.reference_designator.isin(refdes_list)
-            & (streamsddf.stream_type.str.match('Science'))
-            & ~(streamsddf.method.str.contains('bad'))
-        ].compute()
-        streams_json = filtered_df.to_json(orient='records')
-        streams_list = json.loads(streams_json)
-    return streams_list
+from ooi_harvester.metadata.fetcher import fetch_instrument_streams_list
 
 
 def create_request_estimate(

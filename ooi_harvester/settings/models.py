@@ -49,6 +49,7 @@ class OOIConfig(BaseSettings):
     base_urls: dict = {
         "ooinet": "https://ooinet.oceanobservatories.org",
         "rawdata": "https://rawdata.oceanobservatories.org",
+        "cava": "https://api.interactiveoceans.washington.edu"
     }
     paths: dict = {"m2m": "api/m2m", "raw": "files"}
 
