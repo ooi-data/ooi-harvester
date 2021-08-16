@@ -17,6 +17,7 @@ from ..utils.parser import (
     parse_global_range_dataframe,
     parse_param_dict,
 )
+from ooi_harvester.settings.main import harvest_settings
 
 SESSION = requests.Session()
 a = requests.adapters.HTTPAdapter(
@@ -38,7 +39,7 @@ def check_zarr(dest_fold, storage_options={}):
 
 
 def check_data_status(args: dict) -> bool:
-    """ Check if data is ready or not by looking for status.txt"""
+    """Check if data is ready or not by looking for status.txt"""
     complete = False
     check_complete = args["status_url"]
 
@@ -191,6 +192,11 @@ def fetch_url(
 
 def send_request(url, params=None):
     """Send request to OOI. Username and Token already included."""
+    if (
+        harvest_settings.ooi_config.username is None
+        and harvest_settings.ooi_config.token is None
+    ):
+        raise ValueError("Please provide ooi username and token!")
     try:
         prepped_request = requests.Request(
             "GET", url, params=params, auth=(OOI_USERNAME, OOI_TOKEN)
@@ -210,6 +216,8 @@ def request_data(
     stream,
     start_dt,
     end_dt,
+    output_format="application/netcdf",
+    limit=-1,
     exec_dpa=True,
     provenance=False,
     email=None,
@@ -219,16 +227,13 @@ def request_data(
     params = {
         "beginDT": start_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "endDT": end_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-        "format": "application/netcdf",
-        "limit": -1,
+        "format": output_format,
+        "limit": limit,
         "execDPA": str(exec_dpa).lower(),
         "include_provenance": str(provenance).lower(),
         "estimate_only": str(estimate).lower(),
-        "email": "None",
+        "email": str(email),
     }
-
-    if email:
-        params.update({"email": email})
     return send_request(url, params), {"url": url, "params": params}
 
 
@@ -255,7 +260,7 @@ def open_zarr_group(zarr_group, decode_times=False):
 
 
 def url_download(url, data_fold, session=SESSION):
-    """ Method to help download files. """
+    """Method to help download files."""
     outpath = os.path.join(data_fold, os.path.basename(url))
     logger.info(f"{datetime.datetime.now().isoformat()}:    Downloading {url}")
     request = session.get(url, stream=True)  # `prefetch=False` for older
