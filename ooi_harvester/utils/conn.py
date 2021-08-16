@@ -11,7 +11,7 @@ import pandas as pd
 from lxml import html
 import progressbar
 
-from ..config import OOI_USERNAME, OOI_TOKEN, BASE_URL, M2M_PATH
+from ..config import BASE_URL, M2M_PATH
 from ..utils.parser import (
     seconds_to_date,
     parse_global_range_dataframe,
@@ -190,16 +190,21 @@ def fetch_url(
         return r
 
 
-def send_request(url, params=None):
+def send_request(url, params=None, username=None, token=None):
     """Send request to OOI. Username and Token already included."""
-    if (
-        harvest_settings.ooi_config.username is None
-        and harvest_settings.ooi_config.token is None
-    ):
+    if username is None:
+        # When not provided, grab username from settings
+        username = harvest_settings.ooi_config.username
+
+    if token is None:
+        # When not provided, grab token from settings
+        token = harvest_settings.ooi_config.token
+
+    if username is None and token is None:
         raise ValueError("Please provide ooi username and token!")
     try:
         prepped_request = requests.Request(
-            "GET", url, params=params, auth=(OOI_USERNAME, OOI_TOKEN)
+            "GET", url, params=params, auth=(username, token)
         ).prepare()
         r = fetch_url(prepped_request, session=SESSION)
         if isinstance(r, requests.Response):
