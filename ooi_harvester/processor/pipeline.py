@@ -118,9 +118,11 @@ class OOIStreamPipeline(AbstractPipeline):
         run_config_options={},
         test_run=False,
         state_handlers=[],
+        goldcopy=False,
     ):
         self.response = response
         self.refresh = refresh
+        self.goldcopy = goldcopy
         self.nc_files_dict = None
         self.__existing_data_path = existing_data_path
         self.fs = None
@@ -250,9 +252,12 @@ class OOIStreamPipeline(AbstractPipeline):
         return self.fs.exists(os.path.join(zpath, '.zmetadata'))
 
     def _setup_pipeline(self):
-        catalog_dict = parse_response_thredds(self.response)
-        filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
-        harvest_catalog = dict(**filtered_catalog_dict, **self.response)
+        if self.goldcopy:
+            harvest_catalog = self.response
+        else:
+            catalog_dict = parse_response_thredds(self.response)
+            filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
+            harvest_catalog = dict(**filtered_catalog_dict, **self.response)
 
         nc_files_dict = setup_etl(
             harvest_catalog, target_bucket=self.__existing_data_path

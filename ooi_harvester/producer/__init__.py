@@ -103,13 +103,13 @@ def create_catalog_request(
         'request_dt': catalog_dict['retrieved_dt'],
         'data_size': filtered_catalog_dict['total_data_bytes'],
         'units': {'data_size': 'bytes', 'request_dt': 'UTC'},
-        'datasets': filtered_catalog_dict['datasets'],
-        'provenance': filtered_catalog_dict['provenance'],
     }
     return {
         "result": result_dict,
         "stream": stream_dct,
         "zarr_exists": zarr_exists,
+        "datasets": filtered_catalog_dict['datasets'],
+        "provenance": filtered_catalog_dict['provenance'],
         "params": {
             "beginDT": beginTime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "endDT": endTime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
