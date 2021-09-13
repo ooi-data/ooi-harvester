@@ -105,6 +105,10 @@ def create_catalog_request(
         'units': {'data_size': 'bytes', 'request_dt': 'UTC'},
     }
     return {
+        "stream_name": catalog_dict["stream_name"],
+        "catalog_url": catalog_dict["catalog_url"],
+        "base_tds_url": catalog_dict["base_tds_url"],
+        "async_url": download_cat,
         "result": result_dict,
         "stream": stream_dct,
         "zarr_exists": zarr_exists,
