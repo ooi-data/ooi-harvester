@@ -7,6 +7,8 @@ import requests
 from loguru import logger
 from lxml import etree
 from siphon.catalog import TDSCatalog
+from dask.utils import memory_repr
+import numpy as np
 
 from ..config import STORAGE_OPTIONS, HARVEST_CACHE_BUCKET
 
@@ -103,7 +105,7 @@ def parse_param_dict(param_dict):
 
 
 def parse_global_range_dataframe(global_ranges):
-    """ Cleans up the global ranges dataframe """
+    """Cleans up the global ranges dataframe"""
     global_df = global_ranges[global_ranges.columns[:-3]]
     global_df.columns = [
         "reference_designator",
@@ -117,6 +119,16 @@ def parse_global_range_dataframe(global_ranges):
     return global_df
 
 
+def get_bytes(value, unit):
+    bytes_map = {
+        'bytes': 1,
+        'Kbytes': 1024 ** 1,
+        'Mbytes': 1024 ** 2,
+        'Gbytes': 1024 ** 3,
+    }
+    return value * bytes_map[unit]
+
+
 def parse_dataset_element(d, namespace):
     dataset_dict = {}
     for i in d.getiterator():
@@ -127,6 +139,12 @@ def parse_dataset_element(d, namespace):
         if clean_tag == 'dataSize':
             dataset_dict = dict(
                 data_size=float(i.text), **i.attrib, **dataset_dict
+            )
+            dataset_dict = dict(
+                size_bytes=get_bytes(
+                    dataset_dict['data_size'], dataset_dict['units']
+                ),
+                **dataset_dict,
             )
 
         if clean_tag == 'date':
@@ -170,6 +188,7 @@ def filter_and_parse_datasets(cat):
 
     stream_cat = cat.copy()
     name = stream_cat['stream_name']
+    provenance_files = []
     filtered_datasets = []
     for d in stream_cat['datasets']:
         m = re.search(
@@ -177,14 +196,28 @@ def filter_and_parse_datasets(cat):
             % (name),
             str(d['name']),
         )
+        prov = re.search(
+            r'(deployment(\d{4})_(%s)_aggregate_provenance.json)' % (name),
+            str(d['name']),
+        )
         if m:
-            file_name, dep_num, ref, start, end = m.groups()
+            _, dep_num, _, start, end = m.groups()
             dataset = dict(
                 deployment=int(dep_num), start_ts=start, end_ts=end, **d
             )
             filtered_datasets.append(dataset)
+        elif prov:
+            _, dep_num, _ = prov.groups()
+            provenance = dict(deployment=int(dep_num), **d)
+            provenance_files.append(provenance)
 
+    total_bytes = np.sum([d['size_bytes'] for d in filtered_datasets])
     stream_cat['datasets'] = filtered_datasets
+    stream_cat['provenance'] = provenance_files
+    stream_cat['total_data_size'] = memory_repr(
+        total_bytes
+    )
+    stream_cat['total_data_bytes'] = total_bytes
     return stream_cat
 
 

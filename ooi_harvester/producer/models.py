@@ -18,6 +18,7 @@ class HarvestOptions(BaseModel):
     refresh: bool
     test: bool
     path: str
+    goldcopy: bool = False
 
     @validator('path')
     def path_must_exists(cls, v):
