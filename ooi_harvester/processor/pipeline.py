@@ -33,7 +33,7 @@ STORAGE_TYPES = {'docker': Docker}
 
 
 # NOTE: How to pass in state_handlers for tasks?
-@task()
+@task(state_handlers=[process_status_update])
 def processing_task(
     dataset_list, nc_files_dict, zarr_exists, refresh, test_run=False
 ):
