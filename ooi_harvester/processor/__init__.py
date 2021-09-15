@@ -1,5 +1,6 @@
 import datetime
 import math
+import time
 import os
 
 import zarr
@@ -8,6 +9,7 @@ from loguru import logger
 import fsspec
 import dask
 import xarray as xr
+from xarray.backends.zarr import ZarrStore
 
 from rechunker.algorithm import prod
 from rechunker import rechunk
@@ -25,11 +27,17 @@ from .utils import (
 from ..utils.parser import get_storage_options
 
 
-def process_dataset(d, nc_files_dict, is_first=True, logger=logger):
+def process_dataset(
+    d, nc_files_dict, is_first=True, logger=logger, client_kwargs={}
+):
     name = nc_files_dict['stream']['table_name']
     dataset_name = d['name']
     zarr_file = nc_files_dict['temp_bucket']
-    store = fsspec.get_mapper(zarr_file, **get_storage_options(zarr_file))
+    store = fsspec.get_mapper(
+        zarr_file,
+        client_kwargs=client_kwargs,
+        **get_storage_options(zarr_file),
+    )
 
     logger.info(
         f"*** {name} ({d['deployment']}) | {d['start_ts']} - {d['end_ts']} ***"
@@ -63,14 +71,38 @@ def process_dataset(d, nc_files_dict, is_first=True, logger=logger):
         if is_first:
             # TODO: Like the _prepare_ds_to_append need to check on the dims and len for all variables
             mod_ds.to_zarr(
-                store, consolidated=True, compute=True, mode='w', encoding=enc
+                store,
+                consolidated=True,
+                compute=True,
+                mode='w',
+                encoding=enc,
             )
         else:
             append_to_zarr(mod_ds, store, enc, logger=logger)
 
+        is_done = False
+        while not is_done:
+            store = fsspec.get_mapper(
+                zarr_file,
+                client_kwargs=client_kwargs,
+                **get_storage_options(zarr_file),
+            )
+            is_done = is_zarr_ready(store)
+            if is_done:
+                continue
+            time.sleep(5)
+            logger.info("Waiting for zarr file writing to finish...")
+
         delete_dataset(mod_ds)
     else:
         logger.warning("Failed pre processing ... Skipping ...")
+
+
+def is_zarr_ready(store):
+    meta = store.get('.zmetadata')
+    if meta is None:
+        return False
+    return True
 
 
 def preproc(ds):
@@ -116,7 +148,7 @@ def chunk_ds(chunked_ds, chunk=13106200):
 
 
 def update_metadata(dstime, download_date, unit=None, extra_attrs={}):
-    """ Updates the dataset metadata to be more cf compliant, and add CAVA info """
+    """Updates the dataset metadata to be more cf compliant, and add CAVA info"""
 
     for v in dstime.variables:
         var = dstime[v]
@@ -249,16 +281,28 @@ def delete_dataset(ds):
         os.unlink(source_file)
 
 
-def finalize_zarr(source_zarr, final_zarr, time_chunk=1209600, max_mem='2GB'):
+def finalize_zarr(
+    source_zarr,
+    final_zarr,
+    time_chunk=1209600,
+    max_mem='2GB',
+    client_kwargs={},
+):
     storage_options = get_storage_options(source_zarr)
-    source_store = fsspec.get_mapper(source_zarr, **storage_options)
+    source_store = fsspec.get_mapper(
+        source_zarr, client_kwargs=client_kwargs, **storage_options
+    )
     max_byte_size = dask.utils.parse_bytes(max_mem)
 
     zpath, ext = os.path.splitext(source_zarr)
     temp_path = f"{zpath}__tmp{ext}"
     target_path = final_zarr
-    target_store = fsspec.get_mapper(target_path, **storage_options)
-    temp_store = fsspec.get_mapper(temp_path, **storage_options)
+    target_store = fsspec.get_mapper(
+        target_path, client_kwargs=client_kwargs, **storage_options
+    )
+    temp_store = fsspec.get_mapper(
+        temp_path, client_kwargs=client_kwargs, **storage_options
+    )
 
     source_group = zarr.open_group(source_store)
 

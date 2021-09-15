@@ -10,6 +10,8 @@ from siphon.catalog import TDSCatalog
 from dask.utils import memory_repr
 import numpy as np
 
+from ooi_harvester.settings import harvest_settings
+
 from ..config import STORAGE_OPTIONS, HARVEST_CACHE_BUCKET
 
 
@@ -259,7 +261,7 @@ def seconds_to_date(num):
 
 def get_storage_options(path):
     if path.startswith("s3://"):
-        return STORAGE_OPTIONS["aws"]
+        return harvest_settings.storage_options.aws.dict()
 
 
 def get_items(keys, orig_dict):
