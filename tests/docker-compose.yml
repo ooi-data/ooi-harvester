@@ -1,0 +1,9 @@
+# For local development only to spin up services to test against
+version: "3"
+services:
+  minio:
+    image: minio/minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - 9001:9001
+      - 9000:9000

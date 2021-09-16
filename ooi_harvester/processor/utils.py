@@ -58,7 +58,7 @@ def _prepare_existing_zarr(store, ds_to_append, enc):
             attributes['_ARRAY_DIMENSIONS'] = list(new_var.dims)
 
             za.attrs.put(attributes)
-            print(f"{var_name} creation finished.")
+            logger.info(f"{var_name} creation finished.")
     zarr.consolidate_metadata(store)
     return existing_zarr
 

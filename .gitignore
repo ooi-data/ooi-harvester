@@ -133,3 +133,5 @@ dmypy.json
 
 # misc
 test_repo/
+
+version.py

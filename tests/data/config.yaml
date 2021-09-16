@@ -1,0 +1,14 @@
+assigness: []
+harvest_options:
+  path: s3://ooi-data
+  refresh: true
+  test: false
+  goldcopy: true
+  path_settings:
+    endpoint_url: http://localhost:9000/
+instrument: RS03AXPS-PC03A-4B-PHSENA302
+stream:
+  method: streamed
+  name: phsen_data_record
+workflow_config:
+  schedule: 0 0 * * *

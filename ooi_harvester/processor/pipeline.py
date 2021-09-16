@@ -9,7 +9,8 @@ import zarr
 
 # from loguru import logger
 import prefect
-from prefect import Flow, task
+from prefect import Flow
+from prefect.tasks.core.function import FunctionTask
 from prefect.storage import Docker
 from prefect.run_configs import KubernetesRun
 from prefect.storage import Storage
@@ -33,11 +34,19 @@ STORAGE_TYPES = {'docker': Docker}
 
 
 # NOTE: How to pass in state_handlers for tasks?
-@task(state_handlers=[process_status_update])
-def processing_task(
-    dataset_list, nc_files_dict, zarr_exists, refresh, test_run=False
+def processing(
+    dataset_list,
+    nc_files_dict,
+    zarr_exists,
+    refresh,
+    test_run=False,
+    stream_harvest=None,
+    client_kwargs={},
 ):
     name = nc_files_dict['stream']['table_name']
+    if stream_harvest:
+        client_kwargs = stream_harvest.harvest_options.path_settings
+
     try:
         logger = prefect.context.get("logger")
         logger.info(f"Processing {name}.")
@@ -62,33 +71,37 @@ def processing_task(
 
             for idx, d in enumerate(dataset_list):
                 is_first = False
-                if idx == 0 and refresh:
-                    is_first = True
-                else:
-                    final_store = fsspec.get_mapper(
-                        nc_files_dict['final_bucket'],
-                        **get_storage_options(
-                            nc_files_dict['final_bucket']
-                        ),
-                    )
-                    temp_store = fsspec.get_mapper(
-                        nc_files_dict['temp_bucket'],
-                        **get_storage_options(
-                            nc_files_dict['temp_bucket']
-                        ),
-                    )
-                    if temp_store.fs.exists(nc_files_dict['temp_bucket']):
-                        temp_store.fs.delete(
-                            nc_files_dict['temp_bucket'], recursive=True
+                if idx == 0:
+                    if refresh:
+                        is_first = True
+                    else:
+                        final_store = fsspec.get_mapper(
+                            nc_files_dict['final_bucket'],
+                            client_kwargs=client_kwargs,
+                            **get_storage_options(nc_files_dict['final_bucket']),
                         )
-                    zarr.copy_store(final_store, temp_store)
+                        temp_store = fsspec.get_mapper(
+                            nc_files_dict['temp_bucket'],
+                            client_kwargs=client_kwargs,
+                            **get_storage_options(nc_files_dict['temp_bucket']),
+                        )
+                        if temp_store.fs.exists(nc_files_dict['temp_bucket']):
+                            temp_store.fs.delete(
+                                nc_files_dict['temp_bucket'], recursive=True
+                            )
+                        zarr.copy_store(final_store, temp_store)
                 process_dataset(
-                    d, nc_files_dict, is_first=is_first, logger=logger
+                    d,
+                    nc_files_dict,
+                    is_first=is_first,
+                    logger=logger,
+                    client_kwargs=client_kwargs,
                 )
             logger.info(f"Finalizing data stream {name}.")
             final_path = finalize_zarr(
                 source_zarr=nc_files_dict['temp_bucket'],
                 final_zarr=nc_files_dict['final_bucket'],
+                client_kwargs=client_kwargs,
             )
             time_elapsed = datetime.datetime.utcnow() - start_time
             final_message = (
@@ -118,9 +131,16 @@ class OOIStreamPipeline(AbstractPipeline):
         run_config_options={},
         test_run=False,
         state_handlers=[],
+        goldcopy=False,
+        stream_harvest=None,
+        task_state_handlers=[],
+        client_kwargs={},
     ):
         self.response = response
         self.refresh = refresh
+        self.goldcopy = goldcopy
+        self.stream_harvest = stream_harvest
+        self.client_kwargs = client_kwargs
         self.nc_files_dict = None
         self.__existing_data_path = existing_data_path
         self.fs = None
@@ -131,6 +151,7 @@ class OOIStreamPipeline(AbstractPipeline):
         self.__test_run = test_run
 
         self.__state_handlers = state_handlers
+        self.__task_state_handlers = task_state_handlers
 
         # By default use Docker and Kubernetes for flows
         self._run_config = run_config_type
@@ -228,6 +249,12 @@ class OOIStreamPipeline(AbstractPipeline):
                 "Zarr target requires self.targets be a length one list"
             )
 
+        processing_task = FunctionTask(
+            processing,
+            name="processing_task",
+            state_handlers=self.__task_state_handlers,
+        )
+
         with Flow(
             self.name,
             storage=self.storage,
@@ -239,7 +266,8 @@ class OOIStreamPipeline(AbstractPipeline):
                 self.nc_files_dict,
                 self.zarr_exists,
                 self.refresh,
-                self.__test_run,
+                test_run=self.__test_run,
+                stream_harvest=self.stream_harvest,
             )
 
         self._flow = _flow
@@ -250,9 +278,22 @@ class OOIStreamPipeline(AbstractPipeline):
         return self.fs.exists(os.path.join(zpath, '.zmetadata'))
 
     def _setup_pipeline(self):
-        catalog_dict = parse_response_thredds(self.response)
-        filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
-        harvest_catalog = dict(**filtered_catalog_dict, **self.response)
+        if self.stream_harvest:
+            self.client_kwargs = (
+                self.stream_harvest.harvest_options.path_settings
+            )
+            self.goldcopy = self.stream_harvest.harvest_options.goldcopy
+            self.__test_run = self.stream_harvest.harvest_options.test
+            self.__existing_data_path = (
+                self.stream_harvest.harvest_options.path
+            )
+            self.refresh = self.stream_harvest.harvest_options.refresh
+        if self.goldcopy:
+            harvest_catalog = self.response
+        else:
+            catalog_dict = parse_response_thredds(self.response)
+            filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
+            harvest_catalog = dict(**filtered_catalog_dict, **self.response)
 
         nc_files_dict = setup_etl(
             harvest_catalog, target_bucket=self.__existing_data_path
@@ -262,5 +303,6 @@ class OOIStreamPipeline(AbstractPipeline):
 
         self.fs = fsspec.get_mapper(
             self.nc_files_dict['final_bucket'],
+            client_kwargs=self.client_kwargs,
             **get_storage_options(self.nc_files_dict['final_bucket']),
         ).fs

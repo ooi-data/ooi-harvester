@@ -8,6 +8,7 @@ import fsspec
 from loguru import logger
 import pandas as pd
 import dask.dataframe as dd
+from siphon.catalog import TDSCatalog
 
 from ..config import METADATA_BUCKET, HARVEST_CACHE_BUCKET
 from ..utils.conn import request_data, check_zarr, send_request
@@ -17,37 +18,108 @@ from ..utils.parser import (
     parse_uframe_response,
 )
 from ..utils.compute import map_concurrency
+from ooi_harvester.metadata.fetcher import fetch_instrument_streams_list
+from ooi_harvester.metadata.utils import get_catalog_meta
+from ooi_harvester.utils.conn import get_toc
+from ooi_harvester.metadata import get_ooi_streams_and_parameters
+from ooi_harvester.producer.models import StreamHarvest
+from ooi_harvester.utils.parser import filter_and_parse_datasets
 
 
-def fetch_instrument_streams_list(refdes_list=[]) -> List[dict]:
-    """
-    Fetch streams metadata from instrument(s).
-    Note: This function currently only get science streams.
-
-    Args:
-        refdes_list (list, str): List of reference designators
-
-    Returns:
-        list: List of streams metadata
-    """
-    streams_list = []
-    if isinstance(refdes_list, str):
-        refdes_list = refdes_list.split(',')
-
-    if len(refdes_list) > 0:
-        streamsddf = dd.read_parquet(
-            f"{METADATA_BUCKET}/ooi_streams",
-            storage_options=get_storage_options(METADATA_BUCKET),
-        )
-        # Science streams only!
-        filtered_df = streamsddf[
-            streamsddf.reference_designator.isin(refdes_list)
-            & (streamsddf.stream_type.str.match('Science'))
-            & ~(streamsddf.method.str.contains('bad'))
-        ].compute()
-        streams_json = filtered_df.to_json(orient='records')
-        streams_list = json.loads(streams_json)
+def fetch_streams_list(stream_harvest: StreamHarvest) -> list:
+    instruments = get_toc()['instruments']
+    filtered_instruments = [
+        i
+        for i in instruments
+        if i['reference_designator'] == stream_harvest.instrument
+    ]
+    streams_df, _ = get_ooi_streams_and_parameters(filtered_instruments)
+    # Only get science stream
+    streams_json = streams_df[
+        streams_df.stream_type.str.match('Science')
+    ].to_json(orient='records')
+    streams_list = json.loads(streams_json)
     return streams_list
+
+
+def request_axiom_catalog(stream_dct):
+    axiom_ooi_catalog = TDSCatalog(
+        'http://thredds.dataexplorer.oceanobservatories.org/thredds/catalog/ooigoldcopy/public/catalog.xml'
+    )
+    stream_name = stream_dct['table_name']
+    ref = axiom_ooi_catalog.catalog_refs[stream_name]
+    catalog_dict = get_catalog_meta((stream_name, ref))
+    return catalog_dict
+
+
+def create_catalog_request(
+    stream_dct,
+    start_dt=None,
+    end_dt=None,
+    refresh=False,
+    existing_data_path=None,
+):
+    """Creates a catalog request to the gold copy"""
+    # TODO: Allow for filtering down datasets
+    beginTime = pd.to_datetime(stream_dct['beginTime'])
+    endTime = pd.to_datetime(stream_dct['endTime'])
+
+    zarr_exists = False
+    if not refresh:
+        if existing_data_path is not None:
+            zarr_exists, last_time = check_zarr(
+                os.path.join(existing_data_path, stream_dct['table_name']),
+                storage_options=get_storage_options(existing_data_path),
+            )
+        else:
+            raise ValueError(
+                "Please provide existing data path when not refreshing."
+            )
+
+    if zarr_exists:
+        start_dt = last_time + datetime.timedelta(seconds=1)
+        end_dt = datetime.datetime.utcnow()
+
+    if start_dt:
+        if not isinstance(start_dt, datetime.datetime):
+            raise TypeError(f"{start_dt} is not datetime.")
+        beginTime = start_dt
+    if end_dt:
+        if not isinstance(end_dt, datetime.datetime):
+            raise TypeError(f"{end_dt} is not datetime.")
+        endTime = end_dt
+
+    catalog_dict = request_axiom_catalog(stream_dct)
+    filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
+    download_cat = os.path.join(
+        catalog_dict['base_tds_url'],
+        'thredds/fileServer/ooigoldcopy/public',
+        catalog_dict['stream_name'],
+    )
+    result_dict = {
+        'thredds_catalog': catalog_dict['catalog_url'],
+        'download_catalog': download_cat,
+        'status_url': os.path.join(download_cat, 'status.txt'),
+        'request_dt': catalog_dict['retrieved_dt'],
+        'data_size': filtered_catalog_dict['total_data_bytes'],
+        'units': {'data_size': 'bytes', 'request_dt': 'UTC'},
+    }
+    return {
+        "stream_name": catalog_dict["stream_name"],
+        "catalog_url": catalog_dict["catalog_url"],
+        "base_tds_url": catalog_dict["base_tds_url"],
+        "async_url": download_cat,
+        "result": result_dict,
+        "stream": stream_dct,
+        "zarr_exists": zarr_exists,
+        "datasets": filtered_catalog_dict['datasets'],
+        "provenance": filtered_catalog_dict['provenance'],
+        "params": {
+            "beginDT": beginTime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "endDT": endTime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "include_provenance": True,
+        }
+    }
 
 
 def create_request_estimate(
@@ -97,13 +169,15 @@ def create_request_estimate(
     )
     if response:
         table_name = f"{stream_dct['reference_designator']}-{stream_dct['method']}-{stream_dct['stream']}"
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
         *************************************
         {0}
         -------------------------------------
         {1}
         *************************************
-        """).format
+        """
+        ).format
         if "requestUUID" in response:
             m = estimate_size_and_time(response)
             request_dict["params"].update({"estimate_only": "false"})
@@ -145,7 +219,7 @@ def _sort_and_filter_estimated_requests(estimated_requests):
     }
 
 
-def perform_request(req, refresh=False):
+def perform_request(req, refresh=False, goldcopy=False):
     TODAY_DATE = datetime.datetime.utcnow()
     name = req['stream']['table_name']
 

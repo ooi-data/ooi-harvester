@@ -34,8 +34,9 @@ def set_stream(param, stream):
     return param
 
 
-def get_ooi_streams_and_parameters():
-    instruments = get_toc()['instruments']
+def get_ooi_streams_and_parameters(instruments=None):
+    if not instruments:
+        instruments = get_toc()['instruments']
     streams_list = compile_instrument_streams(instruments)
     parameters_list = compile_streams_parameters(streams_list)
     streams = [
