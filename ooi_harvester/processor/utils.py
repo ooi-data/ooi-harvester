@@ -68,6 +68,7 @@ def _prepare_ds_to_append(store, ds_to_append):
 
     existing_zarr = zarr.open_group(store, mode='a')
     zs = ZarrStore(existing_zarr)
+    ds_to_append = ds_to_append.unify_chunks()
 
     for var_name, new_var in zs.get_variables().items():
         existing_shape = tuple(

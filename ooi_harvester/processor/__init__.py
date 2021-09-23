@@ -27,6 +27,55 @@ from .utils import (
 from ..utils.parser import get_storage_options
 
 
+def _update_time_coverage(store: fsspec.mapping.FSMap) -> None:
+    """Updates start and end date in global attributes"""
+    zg = zarr.open_group(store, mode='r+')
+    calendar = zg.time.attrs.get('calendar', 'gregorian')
+    units = zg.time.attrs.get('units', 'seconds since 1900-01-01 0:0:0')
+    start, end = xr.coding.times.decode_cf_datetime(
+        [zg.time[0], zg.time[-1]], units=units, calendar=calendar
+    )
+    zg.attrs['time_coverage_start'] = str(start)
+    zg.attrs['time_coverage_end'] = str(end)
+    zarr.consolidate_metadata(store)
+
+
+def finalize_data_stream(
+    nc_files_dict: dict, client_kwargs: dict, refresh: bool = True
+) -> str:
+    """
+    Finalizes data stream by copying over zarr file
+    from temp bucket to final bucket.
+    """
+    final_path = nc_files_dict['final_bucket']
+    final_store = fsspec.get_mapper(
+        nc_files_dict['final_bucket'],
+        client_kwargs=client_kwargs,
+        **get_storage_options(nc_files_dict['final_bucket']),
+    )
+    temp_store = fsspec.get_mapper(
+        nc_files_dict['temp_bucket'],
+        client_kwargs=client_kwargs,
+        **get_storage_options(nc_files_dict['temp_bucket']),
+    )
+    if refresh:
+        zarr.copy_store(temp_store, final_store, if_exists='replace')
+    else:
+        temp_ds = xr.open_dataset(
+            temp_store,
+            engine='zarr',
+            backend_kwargs={'consolidated': True},
+            decode_times=False,
+        )
+        mod_ds, enc = chunk_ds(temp_ds, max_chunk='100MB')
+        append_to_zarr(mod_ds, final_store, enc, logger=logger)
+
+    # Update start and end date in global attributes
+    _update_time_coverage(final_store)
+
+    return final_path
+
+
 def process_dataset(
     d, nc_files_dict, is_first=True, logger=logger, client_kwargs={}
 ):
@@ -66,7 +115,7 @@ def process_dataset(
             logger.warning(e)
 
     if isinstance(ds, xr.Dataset):
-        mod_ds, enc = chunk_ds(ds)
+        mod_ds, enc = chunk_ds(ds, max_chunk='100MB')
 
         if is_first:
             # TODO: Like the _prepare_ds_to_append need to check on the dims and len for all variables
@@ -116,35 +165,50 @@ def preproc(ds):
     return rawds
 
 
-def chunk_ds(chunked_ds, chunk=13106200):
+def _calc_chunks(variable: xr.DataArray, max_chunk='100MB'):
+    """Dynamically figure out chunk based on max chunk size"""
+    max_chunk_size = dask.utils.parse_bytes(max_chunk)
+    dim_shape = {
+        x: y for x, y in zip(variable.dims, variable.shape) if x != 'time'
+    }
+    if 'time' in variable.dims:
+        time_chunk = math.ceil(
+            max_chunk_size / prod(dim_shape.values()) / variable.dtype.itemsize
+        )
+        dim_shape['time'] = time_chunk
+    chunks = tuple(dim_shape[d] for d in list(variable.dims))
+    return chunks
+
+
+def chunk_ds(chunked_ds, max_chunk='100MB', time_max_chunks='100MB'):
     compress = zarr.Blosc(cname="zstd", clevel=3, shuffle=2)
 
-    time_chunk_list = []
     raw_enc = {}
     for k, v in chunked_ds.data_vars.items():
-        mb_size = v.nbytes / 1024 ** 2
-        dim_shape = {x: y for x, y in zip(v.dims, v.shape)}
-
-        # dynamically figure out chunk
-        if mb_size < 100:
-            time_chunk = math.ceil(100 / mb_size)
-        else:
-            divider = math.floor(mb_size / 100)
-            time_chunk = dim_shape["time"] / divider
-
-        if "time" in dim_shape:
-            dim_shape["time"] = time_chunk
-            time_chunk_list.append(time_chunk)
+        chunks = _calc_chunks(v, max_chunk=max_chunk)
 
         # add extra encodings
         extra_enc = {}
         if "_FillValue" in v.encoding:
             extra_enc["_FillValue"] = v.encoding["_FillValue"]
-        raw_enc[k] = dict(compressor=compress, dtype=v.dtype, **extra_enc)
-    raw_enc["time"] = {"chunks": (chunk,)}
+        raw_enc[k] = dict(
+            compressor=compress, dtype=v.dtype, chunks=chunks, **extra_enc
+        )
 
-    chunked_ds.encoding.update({"unlimited_dims": {"time"}})
-    return chunked_ds.chunk({"time": chunk}), raw_enc
+    if 'time' in chunked_ds:
+        chunks = _calc_chunks(chunked_ds['time'], max_chunk=time_max_chunks)
+        raw_enc["time"] = {"chunks": chunks}
+
+    # Chunk the actual xr dataset
+    for k, v in chunked_ds.variables.items():
+        encoding = raw_enc.get(k, None)
+        var_chunks = {}
+        if isinstance(encoding, dict):
+            var_chunks = encoding['chunks']
+
+        chunked_ds[k] = chunked_ds[k].chunk(chunks=var_chunks)
+
+    return chunked_ds, raw_enc
 
 
 def update_metadata(dstime, download_date, unit=None, extra_attrs={}):

@@ -1,7 +1,7 @@
 import os
 import json
 import datetime
-from typing import List
+from typing import List, Optional, Union
 import textwrap
 
 import fsspec
@@ -9,6 +9,8 @@ from loguru import logger
 import pandas as pd
 import dask.dataframe as dd
 from siphon.catalog import TDSCatalog
+import numpy as np
+from dateutil import parser
 
 from ..config import METADATA_BUCKET, HARVEST_CACHE_BUCKET
 from ..utils.conn import request_data, check_zarr, send_request
@@ -23,7 +25,11 @@ from ooi_harvester.metadata.utils import get_catalog_meta
 from ooi_harvester.utils.conn import get_toc
 from ooi_harvester.metadata import get_ooi_streams_and_parameters
 from ooi_harvester.producer.models import StreamHarvest
-from ooi_harvester.utils.parser import filter_and_parse_datasets
+from ooi_harvester.utils.parser import (
+    filter_and_parse_datasets,
+    filter_datasets_by_time,
+    memory_repr
+)
 
 
 def fetch_streams_list(stream_harvest: StreamHarvest) -> list:
@@ -53,23 +59,29 @@ def request_axiom_catalog(stream_dct):
 
 
 def create_catalog_request(
-    stream_dct,
-    start_dt=None,
-    end_dt=None,
-    refresh=False,
-    existing_data_path=None,
+    stream_dct: dict,
+    start_dt: Optional[np.datetime64] = None,
+    end_dt: Optional[np.datetime64] = None,
+    refresh: bool = False,
+    existing_data_path: Optional[str] = None,
+    client_kwargs: dict = {},
 ):
     """Creates a catalog request to the gold copy"""
     # TODO: Allow for filtering down datasets
-    beginTime = pd.to_datetime(stream_dct['beginTime'])
-    endTime = pd.to_datetime(stream_dct['endTime'])
+    beginTime = np.datetime64(parser.parse(stream_dct['beginTime']))
+    endTime = np.datetime64(parser.parse(stream_dct['endTime']))
 
+    filter_ds = False
     zarr_exists = False
     if not refresh:
         if existing_data_path is not None:
+            storage_options = dict(
+                client_kwargs=client_kwargs,
+                **get_storage_options(existing_data_path),
+            )
             zarr_exists, last_time = check_zarr(
                 os.path.join(existing_data_path, stream_dct['table_name']),
-                storage_options=get_storage_options(existing_data_path),
+                storage_options,
             )
         else:
             raise ValueError(
@@ -77,20 +89,41 @@ def create_catalog_request(
             )
 
     if zarr_exists:
-        start_dt = last_time + datetime.timedelta(seconds=1)
-        end_dt = datetime.datetime.utcnow()
+        start_dt = last_time + np.timedelta64(1000000000)
+        end_dt = np.datetime64(datetime.datetime.utcnow())
 
     if start_dt:
-        if not isinstance(start_dt, datetime.datetime):
+        if not isinstance(start_dt, (np.datetime64, datetime.datetime)):
             raise TypeError(f"{start_dt} is not datetime.")
         beginTime = start_dt
+        filter_ds = True
     if end_dt:
-        if not isinstance(end_dt, datetime.datetime):
+        if not isinstance(end_dt, (np.datetime64, datetime.datetime)):
             raise TypeError(f"{end_dt} is not datetime.")
         endTime = end_dt
+        filter_ds = True
 
     catalog_dict = request_axiom_catalog(stream_dct)
     filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
+
+    if not refresh or filter_ds:
+        filtered_datasets = filter_datasets_by_time(
+            filtered_catalog_dict['datasets'], beginTime, endTime
+        )
+        total_bytes = np.sum([d['size_bytes'] for d in filtered_datasets])
+        deployments = list({d['deployment'] for d in filtered_datasets})
+        filtered_provenance = [
+            p
+            for p in filtered_catalog_dict['provenance']
+            if p['deployment'] in deployments
+        ]
+        filtered_catalog_dict.update({
+            'datasets': filtered_datasets,
+            'provenance': filtered_provenance,
+            'total_data_size': memory_repr(total_bytes),
+            'total_data_bytes': total_bytes
+        })
+
     download_cat = os.path.join(
         catalog_dict['base_tds_url'],
         'thredds/fileServer/ooigoldcopy/public',
@@ -115,10 +148,10 @@ def create_catalog_request(
         "datasets": filtered_catalog_dict['datasets'],
         "provenance": filtered_catalog_dict['provenance'],
         "params": {
-            "beginDT": beginTime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-            "endDT": endTime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "beginDT": str(beginTime),
+            "endDT": str(endTime),
             "include_provenance": True,
-        }
+        },
     }
 
 
