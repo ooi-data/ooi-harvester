@@ -1,18 +1,17 @@
 import os
 import json
 import datetime
-from typing import List, Optional, Union
+from typing import Optional
 import textwrap
 
 import fsspec
 from loguru import logger
 import pandas as pd
-import dask.dataframe as dd
 from siphon.catalog import TDSCatalog
 import numpy as np
 from dateutil import parser
 
-from ..config import METADATA_BUCKET, HARVEST_CACHE_BUCKET
+from ..config import HARVEST_CACHE_BUCKET
 from ..utils.conn import request_data, check_zarr, send_request
 from ..utils.parser import (
     estimate_size_and_time,
@@ -28,7 +27,7 @@ from ooi_harvester.producer.models import StreamHarvest
 from ooi_harvester.utils.parser import (
     filter_and_parse_datasets,
     filter_datasets_by_time,
-    memory_repr
+    memory_repr,
 )
 
 
@@ -60,14 +59,13 @@ def request_axiom_catalog(stream_dct):
 
 def create_catalog_request(
     stream_dct: dict,
-    start_dt: Optional[np.datetime64] = None,
-    end_dt: Optional[np.datetime64] = None,
+    start_dt: Optional[str] = None,
+    end_dt: Optional[str] = None,
     refresh: bool = False,
     existing_data_path: Optional[str] = None,
     client_kwargs: dict = {},
 ):
     """Creates a catalog request to the gold copy"""
-    # TODO: Allow for filtering down datasets
     beginTime = np.datetime64(parser.parse(stream_dct['beginTime']))
     endTime = np.datetime64(parser.parse(stream_dct['endTime']))
 
@@ -93,14 +91,12 @@ def create_catalog_request(
         end_dt = np.datetime64(datetime.datetime.utcnow())
 
     if start_dt:
-        if not isinstance(start_dt, (np.datetime64, datetime.datetime)):
-            raise TypeError(f"{start_dt} is not datetime.")
-        beginTime = start_dt
+        beginTime = (
+            np.datetime64(start_dt) if isinstance(start_dt, str) else start_dt
+        )
         filter_ds = True
     if end_dt:
-        if not isinstance(end_dt, (np.datetime64, datetime.datetime)):
-            raise TypeError(f"{end_dt} is not datetime.")
-        endTime = end_dt
+        endTime = np.datetime64(end_dt) if isinstance(end_dt, str) else end_dt
         filter_ds = True
 
     catalog_dict = request_axiom_catalog(stream_dct)
@@ -117,12 +113,14 @@ def create_catalog_request(
             for p in filtered_catalog_dict['provenance']
             if p['deployment'] in deployments
         ]
-        filtered_catalog_dict.update({
-            'datasets': filtered_datasets,
-            'provenance': filtered_provenance,
-            'total_data_size': memory_repr(total_bytes),
-            'total_data_bytes': total_bytes
-        })
+        filtered_catalog_dict.update(
+            {
+                'datasets': filtered_datasets,
+                'provenance': filtered_provenance,
+                'total_data_size': memory_repr(total_bytes),
+                'total_data_bytes': total_bytes,
+            }
+        )
 
     download_cat = os.path.join(
         catalog_dict['base_tds_url'],
@@ -156,12 +154,13 @@ def create_catalog_request(
 
 
 def create_request_estimate(
-    stream_dct,
-    start_dt=None,
-    end_dt=None,
-    refresh=False,
-    existing_data_path=None,
+    stream_dct: dict,
+    start_dt: Optional[str] = None,
+    end_dt: Optional[str] = None,
+    refresh: bool = False,
+    existing_data_path: str = None,
 ):
+    """Creates an estimated request to OOI M2M"""
     beginTime = pd.to_datetime(stream_dct['beginTime'])
     endTime = pd.to_datetime(stream_dct['endTime'])
 
@@ -182,13 +181,11 @@ def create_request_estimate(
         end_dt = datetime.datetime.utcnow()
 
     if start_dt:
-        if not isinstance(start_dt, datetime.datetime):
-            raise TypeError(f"{start_dt} is not datetime.")
-        beginTime = start_dt
+        beginTime = (
+            parser.parse(start_dt) if isinstance(start_dt, str) else start_dt
+        )
     if end_dt:
-        if not isinstance(end_dt, datetime.datetime):
-            raise TypeError(f"{end_dt} is not datetime.")
-        endTime = end_dt
+        endTime = parser.parse(end_dt) if isinstance(end_dt, str) else end_dt
 
     response, request_dict = request_data(
         stream_dct['platform_code'],

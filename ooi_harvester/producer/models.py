@@ -1,4 +1,5 @@
 from typing import List
+from datetime import datetime
 
 from pydantic import BaseModel, validator
 
@@ -14,12 +15,40 @@ class Stream(BaseModel):
         return v
 
 
+class HarvestRange(BaseModel):
+    start: str = None
+    end: str = None
+
+    @validator('start')
+    def start_isoformat(cls, v):
+        try:
+            if v:
+                datetime.fromisoformat(v)
+            return v
+        except Exception:
+            raise ValueError(
+                'start custom range is not in ISO 8601 format (yyyy-MM-ddTHH:mm:ss.SSSZ)'
+            )
+
+    @validator('end')
+    def end_isoformat(cls, v):
+        try:
+            if v:
+                datetime.fromisoformat(v)
+            return v
+        except Exception:
+            raise ValueError(
+                'end custom range is not in ISO 8601 format (yyyy-MM-ddTHH:mm:ss.SSSZ)'
+            )
+
+
 class HarvestOptions(BaseModel):
     refresh: bool
     test: bool
     path: str
     goldcopy: bool = False
     path_settings: dict = {}
+    custom_range: HarvestRange = HarvestRange()
 
     @validator('path')
     def path_must_exists(cls, v):

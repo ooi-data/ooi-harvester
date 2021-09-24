@@ -73,6 +73,9 @@ def finalize_data_stream(
     # Update start and end date in global attributes
     _update_time_coverage(final_store)
 
+    # Clean up temp_store
+    temp_store.clear()
+
     return final_path
 
 
