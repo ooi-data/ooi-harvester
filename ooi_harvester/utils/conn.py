@@ -30,10 +30,19 @@ SESSION.mount("https://", a)
 def check_zarr(dest_fold, storage_options={}):
     fsmap = fsspec.get_mapper(dest_fold, check=True, **storage_options)
     if fsmap.get('.zmetadata') is not None:
-        zstore = fsmap.fs.get_mapper(os.path.join(dest_fold, 'time'))
-        zarray = zarr.open_array(store=zstore)
-        last_time = seconds_to_date(zarray[-1])
-        return True, last_time
+        zgroup = zarr.open_consolidated(fsmap)
+        if 'time' not in zgroup:
+            raise ValueError(
+                f"Dimension time is missing from the dataset {dest_fold}!"
+            )
+
+        time_array = zgroup['time']
+        calendar = time_array.attrs.get('calendar', 'gregorian')
+        units = time_array.attrs.get('units', 'seconds since 1900-01-01 0:0:0')
+        last_time = xr.coding.times.decode_cf_datetime(
+            [time_array[-1]], units=units, calendar=calendar
+        )
+        return True, last_time[0]
     else:
         return False, None
 

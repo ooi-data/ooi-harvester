@@ -17,7 +17,7 @@ from prefect.storage import Storage
 from prefect.run_configs import RunConfig
 from prefect.engine import signals
 
-from . import process_dataset, finalize_zarr
+from . import process_dataset, finalize_data_stream
 from .state_handlers import process_status_update
 from ..core import AbstractPipeline
 from ..utils.parser import (
@@ -72,24 +72,7 @@ def processing(
             for idx, d in enumerate(dataset_list):
                 is_first = False
                 if idx == 0:
-                    if refresh:
-                        is_first = True
-                    else:
-                        final_store = fsspec.get_mapper(
-                            nc_files_dict['final_bucket'],
-                            client_kwargs=client_kwargs,
-                            **get_storage_options(nc_files_dict['final_bucket']),
-                        )
-                        temp_store = fsspec.get_mapper(
-                            nc_files_dict['temp_bucket'],
-                            client_kwargs=client_kwargs,
-                            **get_storage_options(nc_files_dict['temp_bucket']),
-                        )
-                        if temp_store.fs.exists(nc_files_dict['temp_bucket']):
-                            temp_store.fs.delete(
-                                nc_files_dict['temp_bucket'], recursive=True
-                            )
-                        zarr.copy_store(final_store, temp_store)
+                    is_first = True
                 process_dataset(
                     d,
                     nc_files_dict,
@@ -98,10 +81,8 @@ def processing(
                     client_kwargs=client_kwargs,
                 )
             logger.info(f"Finalizing data stream {name}.")
-            final_path = finalize_zarr(
-                source_zarr=nc_files_dict['temp_bucket'],
-                final_zarr=nc_files_dict['final_bucket'],
-                client_kwargs=client_kwargs,
+            final_path = finalize_data_stream(
+                nc_files_dict, client_kwargs, refresh
             )
             time_elapsed = datetime.datetime.utcnow() - start_time
             final_message = (
@@ -268,6 +249,7 @@ class OOIStreamPipeline(AbstractPipeline):
                 self.refresh,
                 test_run=self.__test_run,
                 stream_harvest=self.stream_harvest,
+                client_kwargs=self.client_kwargs,
             )
 
         self._flow = _flow

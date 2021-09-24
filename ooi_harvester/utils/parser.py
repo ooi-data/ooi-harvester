@@ -2,6 +2,7 @@ import os
 import datetime
 import math
 import traceback
+from typing import List
 
 import requests
 from loguru import logger
@@ -9,6 +10,7 @@ from lxml import etree
 from siphon.catalog import TDSCatalog
 from dask.utils import memory_repr
 import numpy as np
+from dateutil import parser
 
 from ooi_harvester.settings import harvest_settings
 
@@ -216,11 +218,42 @@ def filter_and_parse_datasets(cat):
     total_bytes = np.sum([d['size_bytes'] for d in filtered_datasets])
     stream_cat['datasets'] = filtered_datasets
     stream_cat['provenance'] = provenance_files
-    stream_cat['total_data_size'] = memory_repr(
-        total_bytes
-    )
+    stream_cat['total_data_size'] = memory_repr(total_bytes)
     stream_cat['total_data_bytes'] = total_bytes
     return stream_cat
+
+
+def filter_datasets_by_time(
+    datasets: List[dict], start_dt: np.datetime64, end_dt: np.datetime64
+) -> List[dict]:
+    """
+    Filters datasets collection based on the given start and end datetime.
+
+    Each dataset dictionary in the collection MUST have
+    `start_ts` and `end_ts`key in it.
+
+    Parameters
+    ----------
+    datasets : list
+        The datasets collection to be filtered.
+    start_dt : np.datetime64
+        The start datetime desired.
+    end_dt : np.datetime64
+        The end datetime desired.
+
+    Returns
+    -------
+    list
+        The filtered datasets collection
+
+    """
+    filtered_datasets = []
+    for d in datasets:
+        start_d = np.datetime64(parser.parse(d['start_ts']))
+        end_d = np.datetime64(parser.parse(d['end_ts']))
+        if start_d > start_dt and end_d <= end_dt:
+            filtered_datasets.append(d)
+    return filtered_datasets
 
 
 def setup_etl(stream, source='ooinet', target_bucket='s3://ooi-data'):
