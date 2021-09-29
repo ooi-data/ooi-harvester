@@ -5,8 +5,67 @@ import xarray as xr
 from loguru import logger
 import json
 import fsspec
+from pathlib import Path
+from github import Github
 
 from ..utils.encoders import NumpyEncoder
+from ooi_harvester.settings import harvest_settings
+
+
+def _write_data_avail(avail_dict, gh_write=False):
+    for k, v in avail_dict['results'].items():
+        json_path = Path(k, avail_dict['inst_rd'])
+        stream_content = {avail_dict['data_stream']: v}
+        if gh_write:
+            json_path = str(json_path)
+            try:
+                gh = Github(harvest_settings.github.pat)
+                repo = gh.get_repo(
+                    os.path.join(
+                        harvest_settings.github.data_org, 'data_availability'
+                    )
+                )
+                contents = repo.get_contents(json_path, ref=harvest_settings.github.main_branch)
+
+                json_content = json.loads(contents.decoded_content)
+                if avail_dict['data_stream'] in json_content:
+                    json_content.update(stream_content)
+                else:
+                    json_content = dict(**json_content, **stream_content)
+
+                repo.update_file(
+                    path=contents.path,
+                    message=f"⬆️ Updated {k} data availability for {avail_dict['inst_rd']}",
+                    content=json.dumps(json_content, cls=NumpyEncoder),
+                    sha=contents.sha,
+                    branch=harvest_settings.github.main_branch,
+                )
+            except Exception as e:
+                json_content = stream_content
+                response = e.args[1]
+                if response['message'] == 'Not Found':
+                    repo.create_file(
+                        json_path,
+                        f"✨ Created {k} data availability for {avail_dict['inst_rd']}",
+                        json.dumps(json_content, cls=NumpyEncoder),
+                        branch=harvest_settings.github.main_branch,
+                    )
+        else:
+            if not json_path.parent.exists():
+                json_path.parent.mkdir(exist_ok=True)
+
+            if json_path.exists():
+                json_content = json.loads(
+                    json_path.read_text(encoding='utf-8')
+                )
+                if avail_dict['data_stream'] in json_content:
+                    json_content.update(stream_content)
+                else:
+                    json_content = dict(**json_content, **stream_content)
+            else:
+                json_content = stream_content
+
+            json_path.write_text(json.dumps(json_content, cls=NumpyEncoder))
 
 
 def _validate_dims(ds_to_append, existing_zarr, append_dim):
