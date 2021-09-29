@@ -6,6 +6,10 @@ import json
 
 import fsspec
 import zarr
+import dask
+import dask.array as da
+import numpy as np
+import xarray as xr
 
 # from loguru import logger
 import prefect
@@ -18,7 +22,6 @@ from prefect.run_configs import RunConfig
 from prefect.engine import signals
 
 from . import process_dataset, finalize_data_stream
-from .state_handlers import process_status_update
 from ..core import AbstractPipeline
 from ..utils.parser import (
     parse_response_thredds,
@@ -26,11 +29,87 @@ from ..utils.parser import (
     get_storage_options,
     setup_etl,
 )
+from ooi_harvester.settings import harvest_settings
 import time
+
+from ooi_harvester.processor.utils import _write_data_avail
 
 RUN_CONFIG_TYPES = {'kubernetes': KubernetesRun}
 
 STORAGE_TYPES = {'docker': Docker}
+
+
+def _calc_avail_dict(all_df):
+    avail_dict = {}
+    for _, row in all_df.iterrows():
+        if row['dtindex'] not in avail_dict:
+            avail_dict[int(row['dtindex'])] = row['count']
+        else:
+            avail_dict[int(row['dtindex'])] = (
+                avail_dict[row['dtindex']] + row['count']
+            )
+    return avail_dict
+
+
+def _fetch_avail_dict(ddf, resolution: str = 'D'):
+    final_ddf = ddf.resample(resolution).count().reset_index()
+    final_ddf['dtindex'] = final_ddf['dtindex'].apply(
+        lambda t: t.to_numpy().astype('datetime64[s]').astype('int64'),
+        meta=('dtindex', 'int64'),
+    )
+    return _calc_avail_dict(final_ddf)
+
+
+def data_avail(nc_files_dict, client_kwargs={}, export=True, gh_write=False):
+    name = nc_files_dict['stream']['table_name']
+    inst_rd = nc_files_dict['stream']['reference_designator']
+    stream_rd = '-'.join(
+        [nc_files_dict['stream']['method'], nc_files_dict['stream']['stream']]
+    )
+    logger = prefect.context.get("logger")
+    logger.info(f"Data availability for {name}.")
+
+    url = nc_files_dict['final_bucket']
+    mapper = fsspec.get_mapper(
+        url,
+        anon=True,
+        client_kwargs=client_kwargs,
+        **get_storage_options(url),
+    )
+
+    za = zarr.open_consolidated(mapper)['time']
+    calendar = za.attrs.get(
+        'calendar', harvest_settings.ooi_config.time['calendar']
+    )
+    units = za.attrs.get('units', harvest_settings.ooi_config.time['units'])
+
+    if any(np.isnan(za)):
+        logger.info(f"Null values found. Skipping {name}")
+    else:
+        logger.info(f"Total time bytes: {dask.utils.memory_repr(za.nbytes)}")
+        darr = da.from_zarr(za)
+
+        darr_dt = darr.map_blocks(
+            xr.coding.times.decode_cf_datetime, units=units, calendar=calendar
+        )
+
+        ddf = darr_dt.to_dask_dataframe(['dtindex']).set_index('dtindex')
+        ddf['count'] = 0
+
+        resolutions = {'hourly': 'H', 'daily': 'D', 'monthly': 'M'}
+
+        avail_dict = {
+            'data_stream': stream_rd,
+            'inst_rd': inst_rd,
+            'results': {
+                k: _fetch_avail_dict(ddf, resolution=v)
+                for k, v in resolutions.items()
+            },
+        }
+        if export:
+            _write_data_avail(avail_dict, gh_write=gh_write)
+
+        return avail_dict
 
 
 # NOTE: How to pass in state_handlers for tasks?
@@ -116,6 +195,8 @@ class OOIStreamPipeline(AbstractPipeline):
         stream_harvest=None,
         task_state_handlers=[],
         client_kwargs={},
+        data_availability=True,
+        da_config={},
     ):
         self.response = response
         self.refresh = refresh
@@ -123,6 +204,8 @@ class OOIStreamPipeline(AbstractPipeline):
         self.stream_harvest = stream_harvest
         self.client_kwargs = client_kwargs
         self.nc_files_dict = None
+        self.data_availability = data_availability
+        self.da_config = da_config
         self.__existing_data_path = existing_data_path
         self.fs = None
 
@@ -235,6 +318,7 @@ class OOIStreamPipeline(AbstractPipeline):
             name="processing_task",
             state_handlers=self.__task_state_handlers,
         )
+        data_avail_task = FunctionTask(data_avail, name='data_avail_task')
 
         with Flow(
             self.name,
@@ -251,6 +335,12 @@ class OOIStreamPipeline(AbstractPipeline):
                 stream_harvest=self.stream_harvest,
                 client_kwargs=self.client_kwargs,
             )
+            if self.data_availability:
+                data_avail_task(
+                    self.nc_files_dict,
+                    client_kwargs=self.client_kwargs,
+                    **self.da_config
+                )
 
         self._flow = _flow
         return self._flow
