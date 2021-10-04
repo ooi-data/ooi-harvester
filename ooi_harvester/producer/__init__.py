@@ -49,7 +49,7 @@ def fetch_streams_list(stream_harvest: StreamHarvest) -> list:
 
 def request_axiom_catalog(stream_dct):
     axiom_ooi_catalog = TDSCatalog(
-        'http://thredds.dataexplorer.oceanobservatories.org/thredds/catalog/ooigoldcopy/public/catalog.xml'
+        'http://thredds.dataexplorer.oceanobservatories.org/thredds/catalog/ooigoldcopy/public/catalog.xml'  # noqa
     )
     stream_name = stream_dct['table_name']
     ref = axiom_ooi_catalog.catalog_refs[stream_name]
@@ -87,7 +87,7 @@ def create_catalog_request(
             )
 
     if zarr_exists:
-        start_dt = last_time + np.timedelta64(1000000000)
+        start_dt = last_time
         end_dt = np.datetime64(datetime.datetime.utcnow())
 
     if start_dt:
@@ -198,7 +198,7 @@ def create_request_estimate(
         estimate=True,
     )
     if response:
-        table_name = f"{stream_dct['reference_designator']}-{stream_dct['method']}-{stream_dct['stream']}"
+        table_name = f"{stream_dct['reference_designator']}-{stream_dct['method']}-{stream_dct['stream']}"  # noqa
         text = textwrap.dedent(
             """\
         *************************************

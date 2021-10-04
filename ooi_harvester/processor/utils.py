@@ -176,6 +176,11 @@ def _prepare_ds_to_append(store, ds_to_append):
 
 def _append_zarr(store, ds_to_append, append_dim='time'):
     existing_zarr = zarr.open_group(store, mode='a')
+
+    # Remove append_dim duplicates by checking for existing tail
+    if existing_zarr[append_dim][-1] == ds_to_append[append_dim].data[0]:
+        ds_to_append = ds_to_append.drop_isel({append_dim: 0})
+
     for var_name, var_data in ds_to_append.variables.items():
         if any([append_dim in dim for dim in var_data.dims]):
             existing_arr = existing_zarr[var_name]

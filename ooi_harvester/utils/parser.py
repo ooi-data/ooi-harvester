@@ -14,8 +14,6 @@ from dateutil import parser
 
 from ooi_harvester.settings import harvest_settings
 
-from ..config import STORAGE_OPTIONS, HARVEST_CACHE_BUCKET
-
 
 def estimate_size_and_time(raw):
     m = ""
@@ -196,7 +194,7 @@ def filter_and_parse_datasets(cat):
     filtered_datasets = []
     for d in stream_cat['datasets']:
         m = re.search(
-            r'(deployment(\d{4})_(%s)_(\d{4}\d{2}\d{2}T\d+.\d+)-(\d{4}\d{2}\d{2}T\d+.\d+).nc)'
+            r'(deployment(\d{4})_(%s)_(\d{4}\d{2}\d{2}T\d+.\d+)-(\d{4}\d{2}\d{2}T\d+.\d+).nc)'  # noqa
             % (name),
             str(d['name']),
         )
@@ -251,7 +249,9 @@ def filter_datasets_by_time(
     for d in datasets:
         start_d = np.datetime64(parser.parse(d['start_ts']))
         end_d = np.datetime64(parser.parse(d['end_ts']))
-        if start_d > start_dt and end_d <= end_dt:
+        if start_d >= start_dt.astype(
+            start_d.dtype
+        ) and end_d <= end_dt.astype(start_d.dtype):
             filtered_datasets.append(d)
     return filtered_datasets
 
