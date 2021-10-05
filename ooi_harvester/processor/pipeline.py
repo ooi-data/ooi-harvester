@@ -76,40 +76,42 @@ def data_avail(nc_files_dict, client_kwargs={}, export=True, gh_write=False):
         client_kwargs=client_kwargs,
         **get_storage_options(url),
     )
-
-    za = zarr.open_consolidated(mapper)['time']
-    calendar = za.attrs.get(
-        'calendar', harvest_settings.ooi_config.time['calendar']
-    )
-    units = za.attrs.get('units', harvest_settings.ooi_config.time['units'])
-
-    if any(np.isnan(za)):
-        logger.info(f"Null values found. Skipping {name}")
-    else:
-        logger.info(f"Total time bytes: {dask.utils.memory_repr(za.nbytes)}")
-        darr = da.from_zarr(za)
-
-        darr_dt = darr.map_blocks(
-            xr.coding.times.decode_cf_datetime, units=units, calendar=calendar
+    try:
+        za = zarr.open_consolidated(mapper)['time']
+        calendar = za.attrs.get(
+            'calendar', harvest_settings.ooi_config.time['calendar']
         )
+        units = za.attrs.get('units', harvest_settings.ooi_config.time['units'])
 
-        ddf = darr_dt.to_dask_dataframe(['dtindex']).set_index('dtindex')
-        ddf['count'] = 0
+        if any(np.isnan(za)):
+            logger.info(f"Null values found. Skipping {name}")
+        else:
+            logger.info(f"Total time bytes: {dask.utils.memory_repr(za.nbytes)}")
+            darr = da.from_zarr(za)
 
-        resolutions = {'hourly': 'H', 'daily': 'D', 'monthly': 'M'}
+            darr_dt = darr.map_blocks(
+                xr.coding.times.decode_cf_datetime, units=units, calendar=calendar
+            )
 
-        avail_dict = {
-            'data_stream': stream_rd,
-            'inst_rd': inst_rd,
-            'results': {
-                k: _fetch_avail_dict(ddf, resolution=v)
-                for k, v in resolutions.items()
-            },
-        }
-        if export:
-            _write_data_avail(avail_dict, gh_write=gh_write)
+            ddf = darr_dt.to_dask_dataframe(['dtindex']).set_index('dtindex')
+            ddf['count'] = 0
 
-        return avail_dict
+            resolutions = {'hourly': 'H', 'daily': 'D', 'monthly': 'M'}
+
+            avail_dict = {
+                'data_stream': stream_rd,
+                'inst_rd': inst_rd,
+                'results': {
+                    k: _fetch_avail_dict(ddf, resolution=v)
+                    for k, v in resolutions.items()
+                },
+            }
+            if export:
+                _write_data_avail(avail_dict, gh_write=gh_write)
+
+            return avail_dict
+    except Exception as e:
+        logger.info(f"Error found {e}. Skipping {name}")
 
 
 # NOTE: How to pass in state_handlers for tasks?
@@ -147,26 +149,29 @@ def processing(
                 os.mkdir(temp_fold)
             nc_files_dict['temp_fold'] = temp_fold
             # =================================================
-
-            for idx, d in enumerate(dataset_list):
-                is_first = False
-                if idx == 0:
-                    is_first = True
-                process_dataset(
-                    d,
-                    nc_files_dict,
-                    is_first=is_first,
-                    logger=logger,
-                    client_kwargs=client_kwargs,
+            if len(dataset_list) > 0:
+                for idx, d in enumerate(dataset_list):
+                    is_first = False
+                    if idx == 0:
+                        is_first = True
+                    process_dataset(
+                        d,
+                        nc_files_dict,
+                        is_first=is_first,
+                        logger=logger,
+                        client_kwargs=client_kwargs,
+                    )
+                logger.info(f"Finalizing data stream {name}.")
+                final_path = finalize_data_stream(
+                    nc_files_dict, client_kwargs, refresh
                 )
-            logger.info(f"Finalizing data stream {name}.")
-            final_path = finalize_data_stream(
-                nc_files_dict, client_kwargs, refresh
-            )
-            time_elapsed = datetime.datetime.utcnow() - start_time
-            final_message = (
-                f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}"
-            )
+                time_elapsed = datetime.datetime.utcnow() - start_time
+                final_message = (
+                    f"DONE. ({final_path}) Time elapsed: {str(time_elapsed)}"
+                )
+            else:
+                time_elapsed = datetime.datetime.utcnow() - start_time
+                final_message = f"DONE. (No dataset to process) Time elapsed: {str(time_elapsed)}"
         logger.info(final_message)
     except Exception as exc:
         raise signals.FAIL(
