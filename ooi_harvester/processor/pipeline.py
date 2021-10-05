@@ -16,7 +16,7 @@ import prefect
 from prefect import Flow
 from prefect.tasks.core.function import FunctionTask
 from prefect.storage import Docker
-from prefect.run_configs import KubernetesRun
+from prefect.run_configs import KubernetesRun, ECSRun
 from prefect.storage import Storage
 from prefect.run_configs import RunConfig
 from prefect.engine import signals
@@ -34,7 +34,7 @@ import time
 
 from ooi_harvester.processor.utils import _write_data_avail
 
-RUN_CONFIG_TYPES = {'kubernetes': KubernetesRun}
+RUN_CONFIG_TYPES = {'kubernetes': KubernetesRun, 'ecs': ECSRun}
 
 STORAGE_TYPES = {'docker': Docker}
 
@@ -339,7 +339,7 @@ class OOIStreamPipeline(AbstractPipeline):
                 data_avail_task(
                     self.nc_files_dict,
                     client_kwargs=self.client_kwargs,
-                    **self.da_config
+                    **self.da_config,
                 )
 
         self._flow = _flow
