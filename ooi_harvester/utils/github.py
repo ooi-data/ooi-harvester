@@ -40,7 +40,7 @@ def write_process_status_json(status_json, branch=GH_MAIN_BRANCH):
             branch=branch,
         )
     except Exception as e:
-        _, response = e.args
+        response = e.args[1]
         if response['message'] == 'Not Found':
             repo.create_file(
                 PROCESS_STATUS_PATH_STR,
@@ -72,7 +72,7 @@ def write_request_status_json(status_json, branch=GH_MAIN_BRANCH):
             branch=branch,
         )
     except Exception as e:
-        _, response = e.args
+        response = e.args[1]
         if response['message'] == 'Not Found':
             repo.create_file(
                 REQUEST_STATUS_PATH_STR,
