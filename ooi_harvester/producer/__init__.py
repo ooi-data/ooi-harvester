@@ -161,8 +161,8 @@ def create_request_estimate(
     existing_data_path: str = None,
 ):
     """Creates an estimated request to OOI M2M"""
-    beginTime = pd.to_datetime(stream_dct['beginTime'])
-    endTime = pd.to_datetime(stream_dct['endTime'])
+    beginTime = np.datetime64(parser.parse(stream_dct['beginTime']))
+    endTime = np.datetime64(parser.parse(stream_dct['endTime']))
 
     zarr_exists = False
     if not refresh:
@@ -177,15 +177,17 @@ def create_request_estimate(
             )
 
     if zarr_exists:
-        start_dt = last_time + datetime.timedelta(seconds=1)
-        end_dt = datetime.datetime.utcnow()
+        start_dt = last_time
+        end_dt = np.datetime64(datetime.datetime.utcnow())
 
     if start_dt:
         beginTime = (
-            parser.parse(start_dt) if isinstance(start_dt, str) else start_dt
+            np.datetime64(start_dt) if isinstance(start_dt, str) else start_dt
         )
+        beginTime = parser.parse(str(beginTime))
     if end_dt:
-        endTime = parser.parse(end_dt) if isinstance(end_dt, str) else end_dt
+        endTime = np.datetime64(end_dt) if isinstance(end_dt, str) else end_dt
+        endTime = parser.parse(str(endTime))
 
     response, request_dict = request_data(
         stream_dct['platform_code'],
