@@ -6,6 +6,9 @@ import pandas as pd
 import dask
 import yaml
 import datetime
+import zarr
+import fsspec
+from loguru import logger
 
 from .utils import (
     FS,
@@ -49,6 +52,55 @@ def get_ooi_streams_and_parameters(instruments=None):
     streams_df = pd.DataFrame(streams).drop('parameters', axis=1)
     parameters_df = pd.DataFrame(parameters_list)
     return streams_df, parameters_df
+
+
+def _get_zarr_params(table_name, params, bucket='ooi-data'):
+    data_stream = f"s3://{bucket}/{table_name}"
+    fmap = fsspec.get_mapper(data_stream)
+    if fmap.get('.zmetadata') is None:
+        logger.warning(f"{table_name} does not exist as zarr.")
+        return params
+
+    zg = zarr.open_consolidated(fmap)
+
+    preload_products = {p['reference_designator']: p for p in params}
+
+    parameters = []
+    for k, arr in zg.arrays():
+        arr_attrs = arr.attrs.asdict()
+        data_level = arr_attrs.get("data_product_identifier", None)
+        param_dict = {
+            "pid": None,
+            "reference_designator": k,
+            "stream": '-'.join(table_name.split('-')[-2:]),
+            "parameter_name": arr_attrs.get(
+                "long_name", k.replace('_', ' ').title()
+            ),
+            "netcdf_name": k,
+            "standard_name": arr_attrs.get("standard_name", None),
+            "description": arr_attrs.get("comment", None),
+            "unit": arr_attrs.get("units", None),
+            "data_level": float(data_level.split('_')[-1][-1])
+            if data_level is not None
+            else data_level,
+            "data_product_type": "Science Data"
+            if data_level is not None
+            else data_level,
+            "data_product_identifier": arr_attrs.get(
+                "data_product_identifier", None
+            ),
+            "dimensions": arr_attrs.get("_ARRAY_DIMENSIONS", None),
+        }
+        pre = {}
+        if k in preload_products:
+            pre = preload_products[k].copy()
+        param_dict.update(pre)
+        if k == 'time':
+            param_dict['unit'] = 'UTC'
+            param_dict['parameter_name'] = k.title()
+        param_dict['last_updated'] = datetime.datetime.utcnow().isoformat()
+        parameters.append(param_dict)
+    return parameters
 
 
 def create_metadata(
@@ -160,6 +212,8 @@ def create_metadata(
                         ),
                     )
                 )
+                # Update params to be based on existing zarr also!
+                params = _get_zarr_params(row['table_name'], params=params)
                 param_list.append(params)
             inst_params = list(it.chain.from_iterable(param_list))
             inst_dict['streams'] = json.loads(
