@@ -4,9 +4,11 @@ import textwrap
 
 from .producer import fetch_harvest
 from .metadata import cli as metadata_cli, create_data_catalog
+from .stats import cli as stats_cli
 
 app = typer.Typer()
 app.add_typer(metadata_cli.app, name="metadata")
+app.add_typer(stats_cli.app, name="stats")
 
 
 @app.command()

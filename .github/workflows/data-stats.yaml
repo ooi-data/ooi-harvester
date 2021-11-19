@@ -1,0 +1,49 @@
+name: Create Data Stats
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - ooi_harvester/stats/**/*
+  workflow_dispatch:
+
+jobs:
+  catalog-creation:
+    runs-on: ubuntu-20.04
+    if: "!contains(github.event.head_commit.message, '[ci skip]')"
+    defaults:
+      run:
+        shell: bash -l {0}
+    env:
+      OOI_USERNAME: ${{ secrets.OOI_USERNAME }}
+      OOI_TOKEN: ${{ secrets.OOI_TOKEN }}
+      AWS_KEY: ${{ secrets.AWS_KEY }}
+      AWS_SECRET: ${{ secrets.AWS_SECRET }}
+      GOOGLE_SERVICE_JSON: ${{ secrets.GOOGLE_SERVICE_JSON }}
+      GH_PAT: ${{ secrets.GH_PAT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Cache conda
+        uses: actions/cache@v2
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ hashFiles('.ci/metadata/harvest-environment.yml') }}
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          auto-activate-base: false
+          activate-environment: meta_env
+          environment-file: .ci/metadata/harvest-environment.yml
+          use-only-tar-bz2: true
+      - name: Install package
+        run: |
+          pip install .
+      - name: Run Stats Creation
+        run: |
+          ooi-harvester stats create
