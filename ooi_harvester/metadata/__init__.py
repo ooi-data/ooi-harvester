@@ -8,6 +8,7 @@ import yaml
 import datetime
 import zarr
 import fsspec
+import re
 from loguru import logger
 
 from .utils import (
@@ -26,11 +27,7 @@ from .utils import (
 )
 from ..utils.conn import get_global_ranges, get_toc
 from ..utils.compute import map_concurrency
-from ..config import (
-    GH_DATA_ORG,
-    GH_PAT,
-    STORAGE_OPTIONS
-)
+from ..config import GH_DATA_ORG, GH_PAT, STORAGE_OPTIONS
 
 
 def set_stream(param, stream):
@@ -69,7 +66,15 @@ def _get_zarr_params(table_name, params, bucket='ooi-data'):
     parameters = []
     for k, arr in zg.arrays():
         arr_attrs = arr.attrs.asdict()
-        data_level = arr_attrs.get("data_product_identifier", None)
+
+        # Get data level
+        product_identifier = arr_attrs.get("data_product_identifier", "")
+        m = re.findall(r'L(\d+)', product_identifier)
+        if len(m) == 1:
+            data_level = float(m[0])
+        else:
+            data_level = None
+
         param_dict = {
             "pid": None,
             "reference_designator": k,
@@ -81,12 +86,10 @@ def _get_zarr_params(table_name, params, bucket='ooi-data'):
             "standard_name": arr_attrs.get("standard_name", None),
             "description": arr_attrs.get("comment", None),
             "unit": arr_attrs.get("units", None),
-            "data_level": float(data_level.split('_')[-1][-1])
-            if data_level is not None
-            else data_level,
-            "data_product_type": "Science Data"
-            if data_level is not None
-            else data_level,
+            "data_level": data_level,
+            "data_product_type": arr_attrs.get(
+                "data_product_identifier", "Science Data"
+            ),
             "data_product_identifier": arr_attrs.get(
                 "data_product_identifier", None
             ),
