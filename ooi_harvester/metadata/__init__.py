@@ -29,6 +29,7 @@ from ..utils.compute import map_concurrency
 from ..config import (
     GH_DATA_ORG,
     GH_PAT,
+    STORAGE_OPTIONS
 )
 
 
@@ -56,7 +57,7 @@ def get_ooi_streams_and_parameters(instruments=None):
 
 def _get_zarr_params(table_name, params, bucket='ooi-data'):
     data_stream = f"s3://{bucket}/{table_name}"
-    fmap = fsspec.get_mapper(data_stream)
+    fmap = fsspec.get_mapper(data_stream, **STORAGE_OPTIONS['aws'])
     if fmap.get('.zmetadata') is None:
         logger.warning(f"{table_name} does not exist as zarr.")
         return params
