@@ -84,11 +84,15 @@ def write_request_status_json(status_json, branch=GH_MAIN_BRANCH):
 
 def create_request_commit_message(status_json):
     now = datetime.datetime.utcnow().isoformat()
-    return COMMIT_MESSAGE_TEMPLATE(
-        status_emoji=STATUS_EMOJIS[status_json['status']],
-        status=status_json['status'],
-        request_dt=now,
-    )
+    status_emoji = STATUS_EMOJIS[status_json['status']]
+    if status_json['status'] == 'discontinued':
+        return f"{status_emoji} Data stream has been discontinued ({now})"
+    else:
+        return COMMIT_MESSAGE_TEMPLATE(
+            status_emoji=status_emoji,
+            status=status_json['status'],
+            request_dt=now,
+        )
 
 
 def commit(

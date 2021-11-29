@@ -6,7 +6,8 @@ class GithubStatusDefaults(BaseModel):
         "pending": "🔵",
         "failed": "🔴",
         "success": "🟢",
-        "skip": "⚫️",
+        "skip": "🟠",
+        "discontinued": "⚫️",
     }
     process_commit_message_template: PyObject = (
         "{status_emoji} Data processing [{status}] ({request_dt})".format
