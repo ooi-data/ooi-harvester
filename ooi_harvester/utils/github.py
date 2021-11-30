@@ -100,14 +100,30 @@ def commit(
     name="CAVA Bot",
     email="77078333+ooi-data-bot@users.noreply.github.com",
 ):
-    subprocess.Popen(['git', 'config', '--global', 'user.email', email])
-    subprocess.Popen(['git', 'config', '--global', 'user.name', name])
-    subprocess.Popen(['git', 'add', '.'])
-    subprocess.Popen(['git', 'commit', '-m', message])
+    subprocess.Popen([
+        'git', 'config', '--global', 'user.email', email, '&&',
+        'git', 'config', '--global', 'user.name', name, '&&',
+        'git', 'add', '.', '&&',
+        'git', 'commit', '-m', message
+    ])
 
 
 def push():
     subprocess.Popen(['git', 'push'])
+
+
+def commit_and_push(
+    message='',
+    name="CAVA Bot",
+    email="77078333+ooi-data-bot@users.noreply.github.com",
+):
+    subprocess.Popen([
+        'git', 'config', '--global', 'user.email', email, '&&',
+        'git', 'config', '--global', 'user.name', name, '&&',
+        'git', 'add', '.', '&&',
+        'git', 'commit', '-m', message, '&&',
+        'git', 'push'
+    ])
 
 
 def get_status_json(table_name, request_dt, status):
