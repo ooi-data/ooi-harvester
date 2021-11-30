@@ -3,6 +3,7 @@ import subprocess
 import datetime
 import yaml
 from github import Github
+import time
 from ..config import (
     RESPONSE_PATH_STR,
     GH_DATA_ORG,
@@ -100,16 +101,23 @@ def commit(
     name="CAVA Bot",
     email="77078333+ooi-data-bot@users.noreply.github.com",
 ):
-    subprocess.Popen([
-        'git', 'config', '--global', 'user.email', email, '&&',
-        'git', 'config', '--global', 'user.name', name, '&&',
-        'git', 'add', '.', '&&',
-        'git', 'commit', '-m', message
-    ])
+    subprocess.Popen(['git', 'config', '--global', 'user.email', email]).wait()
+    subprocess.Popen(
+        ['git', 'config', '--global', 'user.name', f'"{name}"']
+    ).wait()
+    subprocess.Popen(['git', 'add', '.'], stdout=subprocess.PIPE).wait()
+    subprocess.Popen(
+        [
+            'git',
+            'commit',
+            '-m',
+            message,
+        ]
+    ).wait()
 
 
 def push():
-    subprocess.Popen(['git', 'push'])
+    subprocess.Popen(['git', 'push']).wait()
 
 
 def commit_and_push(
@@ -117,13 +125,8 @@ def commit_and_push(
     name="CAVA Bot",
     email="77078333+ooi-data-bot@users.noreply.github.com",
 ):
-    subprocess.Popen([
-        'git', 'config', '--global', 'user.email', email, '&&',
-        'git', 'config', '--global', 'user.name', name, '&&',
-        'git', 'add', '.', '&&',
-        'git', 'commit', '-m', message, '&&',
-        'git', 'push'
-    ])
+    commit(message=message, name=name, email=email)
+    push()
 
 
 def get_status_json(table_name, request_dt, status):
