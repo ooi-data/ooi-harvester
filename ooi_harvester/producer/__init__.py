@@ -180,14 +180,20 @@ def create_request_estimate(
         start_dt = last_time
         end_dt = np.datetime64(datetime.datetime.utcnow())
 
-    if start_dt:
-        beginTime = (
-            np.datetime64(start_dt) if isinstance(start_dt, str) else start_dt
-        )
-        beginTime = parser.parse(str(beginTime))
-    if end_dt:
-        endTime = np.datetime64(end_dt) if isinstance(end_dt, str) else end_dt
-        endTime = parser.parse(str(endTime))
+    if start_dt is not None:
+        if isinstance(start_dt, str):
+            beginTime = np.datetime64(start_dt)
+        elif isinstance(start_dt, np.datetime64):
+            beginTime = start_dt
+        else:
+            raise TypeError("start_dt must be a string or np.datetime64!")
+    if end_dt is not None:
+        if isinstance(end_dt, str):
+            endTime = np.datetime64(end_dt)
+        elif isinstance(end_dt, np.datetime64):
+            endTime = end_dt
+        else:
+            raise TypeError("end_dt must be a string or np.datetime64!")
 
     response, request_dict = request_data(
         stream_dct['platform_code'],
@@ -195,8 +201,8 @@ def create_request_estimate(
         stream_dct['instrument_code'],
         stream_dct['method'],
         stream_dct['stream'],
-        beginTime,
-        endTime,
+        parser.parse(str(beginTime)),
+        parser.parse(str(endTime)),
         estimate=True,
     )
     if response:
