@@ -159,6 +159,7 @@ def create_request_estimate(
     end_dt: Optional[str] = None,
     refresh: bool = False,
     existing_data_path: str = None,
+    request_kwargs: dict = {}
 ):
     """Creates an estimated request to OOI M2M"""
     beginTime = np.datetime64(parser.parse(stream_dct['beginTime']))
@@ -204,6 +205,7 @@ def create_request_estimate(
         parser.parse(str(beginTime)),
         parser.parse(str(endTime)),
         estimate=True,
+        **request_kwargs,
     )
     if response:
         table_name = f"{stream_dct['reference_designator']}-{stream_dct['method']}-{stream_dct['stream']}"  # noqa
