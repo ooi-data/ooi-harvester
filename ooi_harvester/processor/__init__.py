@@ -59,6 +59,15 @@ def finalize_data_stream(
         **get_storage_options(nc_files_dict['temp_bucket']),
     )
     if refresh:
+        # Remove missing groups in the final store
+        temp_group = zarr.open_consolidated(temp_store)
+        final_group = zarr.open_group(final_store, mode='r+')
+        for k, _ in final_group.items():
+            if k not in list(temp_group.array_keys()):
+                final_group.pop(k)
+        zarr.consolidate_metadata(final_group)
+
+        # Copy over the store, at this point, they should be similar
         zarr.copy_store(temp_store, final_store, if_exists='replace')
     else:
         temp_ds = xr.open_dataset(
