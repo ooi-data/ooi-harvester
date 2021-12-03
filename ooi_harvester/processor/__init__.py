@@ -65,7 +65,7 @@ def finalize_data_stream(
         for k, _ in final_group.items():
             if k not in list(temp_group.array_keys()):
                 final_group.pop(k)
-        zarr.consolidate_metadata(final_group)
+        zarr.consolidate_metadata(final_store)
 
         # Copy over the store, at this point, they should be similar
         zarr.copy_store(temp_store, final_store, if_exists='replace')
