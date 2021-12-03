@@ -62,10 +62,14 @@ def finalize_data_stream(
         # Remove missing groups in the final store
         temp_group = zarr.open_consolidated(temp_store)
         final_group = zarr.open_group(final_store, mode='r+')
+        final_modified = False
         for k, _ in final_group.items():
             if k not in list(temp_group.array_keys()):
                 final_group.pop(k)
-        zarr.consolidate_metadata(final_store)
+                final_modified = True
+
+        if final_modified:
+            zarr.consolidate_metadata(final_store)
 
         # Copy over the store, at this point, they should be similar
         zarr.copy_store(temp_store, final_store, if_exists='replace')
