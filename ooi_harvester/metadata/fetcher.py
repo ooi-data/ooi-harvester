@@ -24,7 +24,10 @@ def fetch_instrument_streams_list(refdes_list=[]) -> List[dict]:
         filtered_instruments = [
             i for i in instruments if i['reference_designator'] in refdes_list
         ]
-        filtered_df, _ = get_ooi_streams_and_parameters(filtered_instruments)
-        streams_json = filtered_df.to_json(orient='records')
-        streams_list = json.loads(streams_json)
+        if len(filtered_instruments) > 0:
+            filtered_df, _ = get_ooi_streams_and_parameters(
+                filtered_instruments
+            )
+            streams_json = filtered_df.to_json(orient='records')
+            streams_list = json.loads(streams_json)
     return streams_list
