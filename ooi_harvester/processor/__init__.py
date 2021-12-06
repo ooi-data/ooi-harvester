@@ -2,6 +2,7 @@ import datetime
 import math
 import time
 import os
+from pathlib import Path
 
 import zarr
 import numpy as np
@@ -9,7 +10,6 @@ from loguru import logger
 import fsspec
 import dask
 import xarray as xr
-from xarray.backends.zarr import ZarrStore
 
 from rechunker.algorithm import prod
 from rechunker import rechunk
@@ -109,6 +109,7 @@ def process_dataset(
     )
     downloaded = False
     ds = None
+    ncpath = ''
     while not downloaded:
         try:
             ncpath = _download(
@@ -158,9 +159,10 @@ def process_dataset(
             time.sleep(5)
             logger.info("Waiting for zarr file writing to finish...")
 
-        delete_dataset(mod_ds)
+        delete_netcdf(ncpath)
     else:
         logger.warning("Failed pre processing ... Skipping ...")
+        delete_netcdf(ncpath)
 
 
 def is_zarr_ready(store):
@@ -353,6 +355,19 @@ def append_to_zarr(mod_ds, store, encoding, logger=logger):
         mod_ds = mod_ds.reindex(dim_indexer)
 
     _append_zarr(store, mod_ds)
+
+
+def delete_netcdf(ncpath: str) -> None:
+    source_path = Path(ncpath)
+    deletion = False
+    if source_path.is_file():
+        source_path.unlink()
+        deletion = True
+
+    if deletion:
+        # Check for delete
+        if not source_path.is_file():
+            logger.info(f"{ncpath} successfully cleaned up.")
 
 
 def delete_dataset(ds):
