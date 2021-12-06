@@ -159,10 +159,10 @@ def process_dataset(
             time.sleep(5)
             logger.info("Waiting for zarr file writing to finish...")
 
-        delete_netcdf(ncpath)
+        delete_netcdf(ncpath, logger=logger)
     else:
         logger.warning("Failed pre processing ... Skipping ...")
-        delete_netcdf(ncpath)
+        delete_netcdf(ncpath, logger=logger)
 
 
 def is_zarr_ready(store):
@@ -357,7 +357,7 @@ def append_to_zarr(mod_ds, store, encoding, logger=logger):
     _append_zarr(store, mod_ds)
 
 
-def delete_netcdf(ncpath: str) -> None:
+def delete_netcdf(ncpath: str, logger=logger) -> None:
     source_path = Path(ncpath)
     deletion = False
     if source_path.is_file():
