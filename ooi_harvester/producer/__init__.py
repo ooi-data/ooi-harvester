@@ -159,7 +159,7 @@ def create_request_estimate(
     end_dt: Optional[str] = None,
     refresh: bool = False,
     existing_data_path: str = None,
-    request_kwargs: dict = {}
+    request_kwargs: dict = {},
 ):
     """Creates an estimated request to OOI M2M"""
     beginTime = np.datetime64(parser.parse(stream_dct['beginTime']))
@@ -299,7 +299,9 @@ def perform_estimates(instrument_rd, refresh, existing_data_path):
         create_request_estimate,
         streams_list,
         func_kwargs=dict(
-            refresh=refresh, existing_data_path=existing_data_path
+            refresh=refresh,
+            existing_data_path=existing_data_path,
+            request_kwargs=dict(provenance=True),
         ),
         max_workers=50,
     )

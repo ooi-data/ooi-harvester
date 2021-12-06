@@ -1,9 +1,7 @@
 import json
 from typing import List
 
-import dask.dataframe as dd
-
-from ooi_harvester.settings import harvest_settings
+from ooi_harvester.metadata import get_toc, get_ooi_streams_and_parameters
 
 
 def fetch_instrument_streams_list(refdes_list=[]) -> List[dict]:
@@ -22,15 +20,11 @@ def fetch_instrument_streams_list(refdes_list=[]) -> List[dict]:
         refdes_list = refdes_list.split(',')
 
     if len(refdes_list) > 0:
-        streamsddf = dd.read_parquet(
-            f"{harvest_settings.s3_buckets.metadata}/ooi_streams"
-        )
-        # Science streams only!
-        filtered_df = streamsddf[
-            streamsddf.reference_designator.isin(refdes_list)
-            & (streamsddf.stream_type.str.match('Science'))
-            & ~(streamsddf.method.str.contains('bad'))
-        ].compute()
+        instruments = get_toc()['instruments']
+        filtered_instruments = [
+            i for i in instruments if i['reference_designator'] in refdes_list
+        ]
+        filtered_df, _ = get_ooi_streams_and_parameters(filtered_instruments)
         streams_json = filtered_df.to_json(orient='records')
         streams_list = json.loads(streams_json)
     return streams_list
