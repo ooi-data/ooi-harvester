@@ -309,7 +309,7 @@ class OOIStreamPipeline(AbstractPipeline):
 
         self._run_config = rc
         if self._flow:
-            self._flow.storage = self._run_config
+            self._flow.run_config = self._run_config
 
     @property
     def flow(self):
