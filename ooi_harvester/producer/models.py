@@ -27,7 +27,7 @@ class HarvestRange(BaseModel):
             return v
         except Exception:
             raise ValueError(
-                'start custom range is not in ISO 8601 format (yyyy-MM-ddTHH:mm:ss.SSSZ)'
+                'start custom range is not in ISO 8601 format (yyyy-MM-ddTHH:mm:ss.SSS)'
             )
 
     @validator('end')

@@ -160,6 +160,7 @@ def create_request_estimate(
     refresh: bool = False,
     existing_data_path: str = None,
     request_kwargs: dict = {},
+    storage_options: dict = {}
 ):
     """Creates an estimated request to OOI M2M"""
     beginTime = np.datetime64(parser.parse(stream_dct['beginTime']))
@@ -170,7 +171,7 @@ def create_request_estimate(
         if existing_data_path is not None:
             zarr_exists, last_time = check_zarr(
                 os.path.join(existing_data_path, stream_dct['table_name']),
-                storage_options=get_storage_options(existing_data_path),
+                storage_options=storage_options
             )
         else:
             raise ValueError(
@@ -259,16 +260,18 @@ def _sort_and_filter_estimated_requests(estimated_requests):
     }
 
 
-def perform_request(req, refresh=False, goldcopy=False):
+def perform_request(
+    req, refresh=False, logger=logger, storage_options={}
+):
     TODAY_DATE = datetime.datetime.utcnow()
     name = req['stream']['table_name']
 
     refresh_text = 'refresh' if refresh else 'daily'
-    datestr = f"{TODAY_DATE:%Y%m}"
+    datestr = f"{TODAY_DATE:%Y%m}" if refresh else f"{TODAY_DATE:%Y%m%dT%H}"
     fname = f"{name}__{datestr}__{refresh_text}"
     fs = fsspec.filesystem(
         HARVEST_CACHE_BUCKET.split(":")[0],
-        **get_storage_options(HARVEST_CACHE_BUCKET),
+        **storage_options,
     )
     fpath = os.path.join(HARVEST_CACHE_BUCKET, 'ooinet-requests', fname)
 
