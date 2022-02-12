@@ -28,7 +28,7 @@ SESSION.mount("https://", a)
 
 # OOI FOCUSED =====================================================
 def check_zarr(dest_fold, storage_options={}):
-    fsmap = fsspec.get_mapper(dest_fold, check=True, **storage_options)
+    fsmap = fsspec.get_mapper(dest_fold, **storage_options)
     if fsmap.get('.zmetadata') is not None:
         zgroup = zarr.open_consolidated(fsmap)
         if 'time' not in zgroup:
