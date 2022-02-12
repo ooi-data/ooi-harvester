@@ -12,6 +12,25 @@ from ..utils.encoders import NumpyEncoder
 from ooi_harvester.settings import harvest_settings
 
 
+def _get_var_encoding(var):
+    compress = zarr.Blosc(cname="zstd", clevel=3, shuffle=2)
+    enc = {
+        'chunks': getattr(var, '_chunks'),
+    }
+    if var.basename != 'time':
+        enc = dict(
+            **{
+                'compressor': getattr(var, '_compressor', compress),
+                'dtype': getattr(var, '_dtype'),
+            },
+            **enc,
+        )
+        fill_value = getattr(var, '_fill_value', None)
+        if fill_value is not None:
+            enc['_FillValue'] = fill_value
+    return enc
+
+
 def _write_data_avail(avail_dict, gh_write=False):
     for k, v in avail_dict['results'].items():
         json_path = Path(k, avail_dict['inst_rd'])
@@ -25,7 +44,9 @@ def _write_data_avail(avail_dict, gh_write=False):
                         harvest_settings.github.data_org, 'data_availability'
                     )
                 )
-                contents = repo.get_contents(json_path, ref=harvest_settings.github.main_branch)
+                contents = repo.get_contents(
+                    json_path, ref=harvest_settings.github.main_branch
+                )
 
                 json_content = json.loads(contents.decoded_content)
                 if avail_dict['data_stream'] in json_content:
@@ -71,7 +92,10 @@ def _write_data_avail(avail_dict, gh_write=False):
 def _validate_dims(ds_to_append, existing_zarr, append_dim):
     dim_indexer = {}
     modify_zarr_dims = False
+    issue_dims = []
     for dim, new_size in ds_to_append.sizes.items():
+        if any(ds_to_append[dim].isnull()):
+            issue_dims.append(dim)
         if 'time' not in dim:
             existing_var = existing_zarr[dim]
             existing_size = existing_var.shape[0]
@@ -82,7 +106,7 @@ def _validate_dims(ds_to_append, existing_zarr, append_dim):
             elif new_size > existing_size:
                 dim_indexer[dim] = ds_to_append[dim].values
                 modify_zarr_dims = True
-    return dim_indexer, modify_zarr_dims
+    return dim_indexer, modify_zarr_dims, issue_dims
 
 
 def _prepare_existing_zarr(store, ds_to_append, enc):
@@ -123,6 +147,7 @@ def _prepare_existing_zarr(store, ds_to_append, enc):
 
 
 def _prepare_ds_to_append(store, ds_to_append):
+    # WARNING: ONLY WORKS FOR FLOATS!!
     from xarray.backends.zarr import ZarrStore
 
     existing_zarr = zarr.open_group(store, mode='a')
@@ -134,16 +159,19 @@ def _prepare_ds_to_append(store, ds_to_append):
             ds_to_append[dim].shape[0] for dim, size in new_var.sizes.items()
         )
         existing_chunks = {
-            dim: ds_to_append.chunks[dim] for dim in new_var.dims
+            dim: ds_to_append.chunks.get(dim, None) for dim in new_var.dims
         }
         if var_name not in ds_to_append:
             logger.info(f"{var_name} not in ds_to_append ... creating ...")
-            new_arr = np.zeros(existing_shape, dtype=new_var.dtype)
-            new_arr.fill(
+            new_arr = np.full(
+                existing_shape,
                 new_var.attrs['_FillValue']
                 if '_FillValue' in new_var.attrs
-                else None
+                else np.nan,
+                dtype=new_var.dtype,
             )
+            if "_FillValue" in new_var.attrs:
+                new_var.attrs.pop("_FillValue")
 
             ds_to_append[var_name] = xr.Variable(
                 dims=new_var.dims,
@@ -159,12 +187,15 @@ def _prepare_ds_to_append(store, ds_to_append):
                 logger.info(
                     f"{var_name} is not aligned with existing variable ... modifying ..."
                 )
-                new_arr = np.zeros(existing_shape, dtype=new_var.dtype)
-                new_arr.fill(
+                new_arr = np.full(
+                    existing_shape,
                     new_var.attrs['_FillValue']
                     if '_FillValue' in new_var.attrs
-                    else None
+                    else np.nan,
+                    dtype=new_var.dtype,
                 )
+                if "_FillValue" in new_var.attrs:
+                    new_var.attrs.pop("_FillValue")
                 ds_to_append[var_name] = xr.Variable(
                     dims=new_var.dims,
                     data=new_arr,

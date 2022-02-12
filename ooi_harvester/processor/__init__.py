@@ -10,6 +10,7 @@ from loguru import logger
 import fsspec
 import dask
 import xarray as xr
+from xarray import coding
 
 from rechunker.algorithm import prod
 from rechunker import rechunk
@@ -92,9 +93,17 @@ def finalize_data_stream(
     return final_path
 
 
+def get_logger():
+    from loguru import logger
+
+    return logger
+
+
 def process_dataset(
-    d, nc_files_dict, is_first=True, logger=logger, client_kwargs={}
+    d, nc_files_dict, is_first=True, logger=None, client_kwargs={}
 ):
+    if logger is None:
+        logger = get_logger()
     name = nc_files_dict['stream']['table_name']
     dataset_name = d['name']
     zarr_file = nc_files_dict['temp_bucket']
@@ -143,21 +152,25 @@ def process_dataset(
                 mode='w',
                 encoding=enc,
             )
+            succeed = True
         else:
-            append_to_zarr(mod_ds, store, enc, logger=logger)
+            succeed = append_to_zarr(mod_ds, store, enc, logger=logger)
 
-        is_done = False
-        while not is_done:
-            store = fsspec.get_mapper(
-                zarr_file,
-                client_kwargs=client_kwargs,
-                **get_storage_options(zarr_file),
-            )
-            is_done = is_zarr_ready(store)
-            if is_done:
-                continue
-            time.sleep(5)
-            logger.info("Waiting for zarr file writing to finish...")
+        if succeed:
+            is_done = False
+            while not is_done:
+                store = fsspec.get_mapper(
+                    zarr_file,
+                    client_kwargs=client_kwargs,
+                    **get_storage_options(zarr_file),
+                )
+                is_done = is_zarr_ready(store)
+                if is_done:
+                    continue
+                time.sleep(5)
+                logger.info("Waiting for zarr file writing to finish...")
+        else:
+            logger.warning(f"SKIPPED: Issues in file found for {d.get('name')}!")
 
         delete_netcdf(ncpath, logger=logger)
     else:
@@ -178,8 +191,17 @@ def preproc(ds):
     else:
         rawds = ds
     for v in rawds.variables:
-        if rawds[v].dtype in ['object', '|S36']:
-            rawds[v] = rawds[v].astype(str)
+        var = rawds[v]
+        if (
+            not np.issubdtype(var.dtype, np.number)
+            and not np.issubdtype(var.dtype, np.datetime64)
+            and not np.issubdtype(var.dtype, np.bool_)
+        ):
+            if (
+                not coding.strings.is_unicode_dtype(var.dtype)
+                or var.dtype == object
+            ):
+                rawds[v] = var.astype(str)
     return rawds
 
 
@@ -198,24 +220,33 @@ def _calc_chunks(variable: xr.DataArray, max_chunk='100MB'):
     return chunks
 
 
-def chunk_ds(chunked_ds, max_chunk='100MB', time_max_chunks='100MB'):
+def chunk_ds(
+    chunked_ds, max_chunk='100MB', time_max_chunks='100MB', existing_enc=None
+):
     compress = zarr.Blosc(cname="zstd", clevel=3, shuffle=2)
 
-    raw_enc = {}
-    for k, v in chunked_ds.data_vars.items():
-        chunks = _calc_chunks(v, max_chunk=max_chunk)
+    if existing_enc is None:
+        raw_enc = {}
+        for k, v in chunked_ds.data_vars.items():
+            chunks = _calc_chunks(v, max_chunk=max_chunk)
 
-        # add extra encodings
-        extra_enc = {}
-        if "_FillValue" in v.encoding:
-            extra_enc["_FillValue"] = v.encoding["_FillValue"]
-        raw_enc[k] = dict(
-            compressor=compress, dtype=v.dtype, chunks=chunks, **extra_enc
-        )
+            # add extra encodings
+            extra_enc = {}
+            if "_FillValue" in v.encoding:
+                extra_enc["_FillValue"] = v.encoding["_FillValue"]
+            raw_enc[k] = dict(
+                compressor=compress, dtype=v.dtype, chunks=chunks, **extra_enc
+            )
 
-    if 'time' in chunked_ds:
-        chunks = _calc_chunks(chunked_ds['time'], max_chunk=time_max_chunks)
-        raw_enc["time"] = {"chunks": chunks}
+        if 'time' in chunked_ds:
+            chunks = _calc_chunks(
+                chunked_ds['time'], max_chunk=time_max_chunks
+            )
+            raw_enc["time"] = {"chunks": chunks}
+    elif isinstance(existing_enc, dict):
+        raw_enc = existing_enc
+    else:
+        raise ValueError("existing encoding only accepts dictionary!")
 
     # Chunk the actual xr dataset
     for k, v in chunked_ds.variables.items():
@@ -279,10 +310,10 @@ def update_metadata(dstime, download_date, unit=None, extra_attrs={}):
                 var.attrs["long_name"] = "Observation unique id"
 
     # Change preferred_timestamp data type
-    if "preferred_timestamp" in dstime.variables:
-        dstime["preferred_timestamp"] = dstime["preferred_timestamp"].astype(
-            "|S36"
-        )
+    # if "preferred_timestamp" in dstime.variables:
+    #     dstime["preferred_timestamp"] = dstime["preferred_timestamp"].astype(
+    #         "|S36"
+    #     )
 
     dstime.attrs[
         "comment"
@@ -333,7 +364,9 @@ def get_encoding(ds):
     return encoding
 
 
-def append_to_zarr(mod_ds, store, encoding, logger=logger):
+def append_to_zarr(mod_ds, store, encoding, logger=None):
+    if logger is None:
+        logger = get_logger()
     existing_zarr = zarr.open_group(store, mode='a')
     existing_var_count = len(list(existing_zarr.array_keys()))
     to_append_var_count = len(mod_ds.variables)
@@ -343,9 +376,13 @@ def append_to_zarr(mod_ds, store, encoding, logger=logger):
     else:
         mod_ds = _prepare_ds_to_append(store, mod_ds)
 
-    dim_indexer, modify_zarr_dims = _validate_dims(
+    dim_indexer, modify_zarr_dims, issue_dims = _validate_dims(
         mod_ds, existing_zarr, append_dim='time'
     )
+
+    if len(issue_dims) > 0:
+        logger.warning(f"{','.join(issue_dims)} dimension(s) are problematic. Skipping append...")
+        return False
 
     if modify_zarr_dims:
         logger.info("Reindexing zarr ...")
@@ -354,10 +391,20 @@ def append_to_zarr(mod_ds, store, encoding, logger=logger):
         logger.info("Reindexing dataset to append ...")
         mod_ds = mod_ds.reindex(dim_indexer)
 
-    _append_zarr(store, mod_ds)
+    mod_ds.to_zarr(
+        store,
+        consolidated=True,
+        compute=True,
+        mode='a',
+        append_dim='time',
+    )
+
+    return True
 
 
-def delete_netcdf(ncpath: str, logger=logger) -> None:
+def delete_netcdf(ncpath: str, logger=None) -> None:
+    if logger is None:
+        logger = get_logger()
     source_path = Path(ncpath)
     deletion = False
     if source_path.is_file():
