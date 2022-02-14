@@ -1,8 +1,15 @@
 import logging
 from logging import LogRecord
 import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 import fsspec
+import prefect
+from prefect import Flow, Task  # noqa
+from prefect.utilities.notifications import callback_factory
+from ooi_harvester.processor.state_handlers import get_issue
+from ooi_harvester.utils.parser import parse_exception
+
+TrackedObjectType = Union["Flow", "Task"]
 
 
 class HarvestFlowLogHandler(logging.StreamHandler):
@@ -58,3 +65,27 @@ class HarvestFlowLogHandler(logging.StreamHandler):
                 with fs.open(logfile, mode="a") as f:
                     message = self.__log_formatter.format(record)
                     f.write(f"{message}\n")
+
+
+# TODO: Break up state handler by task?
+# def get_main_flow_state_handler():
+#     """Get the main finished flow state handler"""
+
+#     def fn(obj, state):
+#         now = datetime.datetime.utcnow().isoformat()
+#         flow_run_id = prefect.context.get("flow_run_id")
+#         for task in obj.tasks:
+#             task_name = task.name
+#             task_state = state.result[task]
+#             result = task_state.result
+#             if task_state.is_failed():
+#                 exc_dict = parse_exception(result)
+#                 issue = get_issue(flow_run_id, task_name, exc_dict, now)
+#                 print(now, flow_run_id, task_name, task_state)
+#             elif task_state.is_successful():
+#                 print(now, flow_run_id, task_name, task_state)
+
+#     def check(state):
+#         return state.is_finished()
+
+#     return callback_factory(fn, check)

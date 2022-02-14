@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest import result
 import yaml
 import datetime
 import xarray as xr
@@ -65,13 +66,17 @@ def setup_harvest(stream_harvest):
     except Exception:
         logger.warning("Stream not found in OOI Database.")
         message = f"{table_name} not found in OOI Database. It may be that this stream has been discontinued."
-        #         status_json = get_status_json(
-        #             table_name, request_dt, 'discontinued'
-        #         )
-        raise SKIP(message=message)
+        status_json = get_status_json(table_name, request_dt, 'discontinued')
+        raise SKIP(
+            message=message, result={"status": status_json, "message": message}
+        )
 
     if stream_harvest.harvest_options.goldcopy:
-        raise SKIP(message="Gold Copy Harvest is not currently supported.")
+        status_json = get_status_json(table_name, request_dt, 'failed')
+        raise SKIP(
+            message="Gold Copy Harvest is not currently supported.",
+            result={"status": status_json, "message": message},
+        )
     else:
         estimated_request = create_request_estimate(
             stream_dct=stream_dct,
@@ -263,8 +268,10 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk):
                                 )
                                 succeed = True
                             else:
-                                succeed = append_to_zarr(mod_ds, temp_store, enc, logger=logger)
-                            
+                                succeed = append_to_zarr(
+                                    mod_ds, temp_store, enc, logger=logger
+                                )
+
                             if succeed:
                                 is_done = False
                                 while not is_done:
@@ -279,9 +286,13 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk):
                                     logger.info(
                                         "Waiting for zarr file writing to finish..."
                                     )
-                                logger.info(f"SUCCESS: File successfully written to zarr.")
+                                logger.info(
+                                    f"SUCCESS: File successfully written to zarr."
+                                )
                             else:
-                                logger.warning(f"SKIPPED: Issues in file found for {d.get('name')}!")
+                                logger.warning(
+                                    f"SKIPPED: Issues in file found for {d.get('name')}!"
+                                )
                         else:
                             logger.warning("SKIPPED: Failed pre processing!")
             except Exception as e:

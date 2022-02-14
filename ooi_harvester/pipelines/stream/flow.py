@@ -1,5 +1,7 @@
-from prefect import task, Flow, Parameter
+from prefect import Flow, Parameter
 from prefect.utilities.logging import get_logger
+from pydantic import BaseModel
+from typing import Dict, Any, Union
 from ooi_harvester.pipelines.stream.tasks import (
     get_stream_harvest,
     setup_harvest,
@@ -11,6 +13,16 @@ from ooi_harvester.pipelines.stream.tasks import (
     finalize_data_stream,
     data_availability,
 )
+from ooi_harvester.pipelines.stream.handlers import (
+    HarvestFlowLogHandler,
+    # get_main_flow_state_handler,
+)
+
+
+class LogHandlerSettings(BaseModel):
+    fs_protocol: str = "s3"
+    fs_kwargs: Dict[str, Any] = {}
+    bucket_name: str = "io2data-harvest-cache"
 
 
 def create_flow(
@@ -19,9 +31,14 @@ def create_flow(
     run_config=None,
     state_handlers=None,
     schedule=None,
-    log_handler_settings=None,
+    log_settings: Union[LogHandlerSettings, Dict[str, Any]] = {},
     **kwargs
-):
+) -> Flow:
+
+    # if state_handlers is None:
+    #     main_flow_sh = get_main_flow_state_handler()
+    #     state_handlers = [main_flow_sh]
+
     with Flow(
         name=name,
         storage=storage,
@@ -61,13 +78,16 @@ def create_flow(
         )
         availability.set_upstream(final_path)
 
-    # TODO: Use log handler settings to setup below
-    # task_names = [t.name for t in flow.tasks]
-    # fs_kwargs = dict(
-    #     client_kwargs=dict(endpoint_url="http://localhost:9000/"),
-    #     key="minioadmin",
-    #     secret="minioadmin",
-    # )
-    # flow_logger = get_logger()
-    # flow_logger.addHandler(HarvestFlowLogHandler(task_names, fs_kwargs=fs_kwargs))
+    task_names = [t.name for t in flow.tasks]
+    if isinstance(log_settings, dict):
+        log_settings = LogHandlerSettings(**log_settings)
+    elif isinstance(log_settings, LogHandlerSettings):
+        ...
+    else:
+        raise TypeError("log_settings must be type LogHandlerSettings or Dict")
+
+    flow_logger = get_logger()
+    flow_logger.addHandler(
+        HarvestFlowLogHandler(task_names, **log_settings.dict())
+    )
     return flow
