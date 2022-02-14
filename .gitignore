@@ -135,3 +135,6 @@ dmypy.json
 test_repo/
 
 version.py
+
+# jupyter
+notebooks
