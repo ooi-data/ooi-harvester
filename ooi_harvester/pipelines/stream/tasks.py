@@ -42,9 +42,11 @@ from ooi_harvester.utils.parser import (
 
 
 @task
-def set_credentials(ooi_username, ooi_token):
+def set_credentials(ooi_username, ooi_token, gh_pat):
     harvest_settings.ooi_config.username = ooi_username
     harvest_settings.ooi_config.token = ooi_token
+    harvest_settings.github.pat = gh_pat
+
 
 @task
 def get_stream_harvest(config_json):
@@ -361,7 +363,9 @@ def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
 
 
 @task
-def data_availability(nc_files_dict, stream_harvest, export=False):
+def data_availability(
+    nc_files_dict, stream_harvest, export=False, gh_write=False
+):
     name = nc_files_dict['stream']['table_name']
     inst_rd = nc_files_dict['stream']['reference_designator']
     stream_rd = '-'.join(
@@ -411,7 +415,7 @@ def data_availability(nc_files_dict, stream_harvest, export=False):
                 },
             }
             if export:
-                _write_data_avail(avail_dict, gh_write=False)
+                _write_data_avail(avail_dict, gh_write=gh_write)
 
             return avail_dict
     except Exception as e:

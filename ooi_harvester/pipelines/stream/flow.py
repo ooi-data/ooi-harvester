@@ -66,10 +66,12 @@ def create_flow(
         target_bucket = Parameter("target_bucket", default="s3://ooi-data")
         max_data_chunk = Parameter("max_chunk", default="100MB")
         export_da = Parameter("export_da", default=False)
+        gh_write_da = Parameter("gh_write_da", default=False)
         ooi_username = PrefectSecret("OOI_USERNAME")
         ooi_token = PrefectSecret("OOI_TOKEN")
+        gh_pat = PrefectSecret("GH_PAT")
 
-        set_creds = set_credentials(ooi_username, ooi_token)
+        set_creds = set_credentials(ooi_username, ooi_token, gh_pat)
 
         # Producer
         stream_harvest = get_stream_harvest(config)
@@ -123,6 +125,7 @@ def create_flow(
             nc_files_dict,
             stream_harvest,
             export_da,
+            gh_write_da,
             task_args={
                 "state_handlers": state_handlers,
             },
