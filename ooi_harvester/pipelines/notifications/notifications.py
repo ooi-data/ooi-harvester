@@ -86,9 +86,15 @@ def github_issue_notifier(
     Github issue state handler for failed task
     """
     GH_PAT = cast(str, prefect.client.Secret(gh_pat or "GH_PAT").get())
-    flow_run_id = gh_repo or prefect.context.get("flow_run_id")
     run_params = prefect.context.get("parameters")
     harvest_config = run_params.get("config", {})
+    gh_repo = gh_repo or "-".join(
+        [
+            harvest_config['instrument'],
+            harvest_config['stream']['method'],
+            harvest_config['stream']['name'],
+        ]
+    )
     if new_state.is_failed():
         now = datetime.datetime.utcnow().isoformat()
 
@@ -99,6 +105,6 @@ def github_issue_notifier(
         issue.setdefault("labels", labels or harvest_config.get("labels", []))
 
         gh = Github(GH_PAT)
-        repo = gh.get_repo(os.path.join(gh_org, flow_run_id))
+        repo = gh.get_repo(os.path.join(gh_org, gh_repo))
         repo.create_issue(**issue)
     return new_state
