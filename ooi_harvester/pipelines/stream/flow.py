@@ -46,8 +46,6 @@ def create_flow(
     state_handlers = [
         github_issue_notifier(
             gh_org=issue_config.get("gh_org", default_gh_org),
-            assignees=issue_config.get("assignees", []),
-            labels=issue_config.get("labels", []),
         )
     ]
     # if state_handlers is None:

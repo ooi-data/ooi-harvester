@@ -79,20 +79,23 @@ def github_issue_notifier(
     gh_org: str,
     gh_repo: Optional[str] = None,
     gh_pat: Optional[str] = None,
-    assignees: List[str] = [],
-    labels: List[str] = [],
+    assignees: Optional[List[str]] = None,
+    labels: Optional[List[str]] = None,
 ) -> "prefect.engine.state.State":
     """
     Github issue state handler for failed task
     """
     GH_PAT = cast(str, prefect.client.Secret(gh_pat or "GH_PAT").get())
     flow_run_id = gh_repo or prefect.context.get("flow_run_id")
+    run_params = prefect.context.get("parameters")
     if new_state.is_failed():
         now = datetime.datetime.utcnow().isoformat()
 
         issue = github_task_issue_formatter(task_obj, new_state, now)
-        issue.setdefault("assignees", assignees)
-        issue.setdefault("labels", labels)
+        issue.setdefault(
+            "assignees", assignees or run_params.get("assignees", [])
+        )
+        issue.setdefault("labels", labels or run_params.get("labels", []))
 
         gh = Github(GH_PAT)
         repo = gh.get_repo(os.path.join(gh_org, flow_run_id))
