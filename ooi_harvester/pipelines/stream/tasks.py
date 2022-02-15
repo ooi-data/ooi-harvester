@@ -31,6 +31,7 @@ from ooi_harvester.processor import (
     _download,
     chunk_ds,
     preproc,
+    state_handlers,
     update_metadata,
     is_zarr_ready,
     append_to_zarr,
@@ -191,7 +192,7 @@ def setup_process(response_json, target_bucket):
     return nc_files_dict
 
 
-@task
+@task(state_handlers=[])
 def data_processing(nc_files_dict, stream_harvest, max_chunk):
     logger = prefect.context.get("logger")
     stream = nc_files_dict.get("stream")

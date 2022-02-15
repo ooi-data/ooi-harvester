@@ -17,6 +17,9 @@ from ooi_harvester.pipelines.stream.handlers import (
     HarvestFlowLogHandler,
     # get_main_flow_state_handler,
 )
+from ooi_harvester.pipelines.notifications.notifications import (
+    github_issue_notifier,
+)
 
 
 class LogHandlerSettings(BaseModel):
@@ -31,6 +34,7 @@ def create_flow(
     run_config=None,
     state_handlers=None,
     schedule=None,
+    issue_config: Dict[str, Any] = {},
     log_settings: Union[LogHandlerSettings, Dict[str, Any]] = {},
     **kwargs
 ) -> Flow:
@@ -64,7 +68,16 @@ def create_flow(
         # Process data to temp
         nc_files_dict = setup_process(response_json, target_bucket)
         stores_dict = data_processing(
-            nc_files_dict, stream_harvest, max_data_chunk
+            nc_files_dict,
+            stream_harvest,
+            max_data_chunk,
+            state_handlers=[
+                github_issue_notifier(
+                    gh_org=issue_config.get("gh_org", "ooi-data"),
+                    assignees=issue_config.get("assignees", []),
+                    labels=issue_config.get("labels", []),
+                )
+            ],
         )
 
         # Finalize data and transfer to final
