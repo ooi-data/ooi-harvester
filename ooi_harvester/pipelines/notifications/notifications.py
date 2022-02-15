@@ -88,14 +88,15 @@ def github_issue_notifier(
     GH_PAT = cast(str, prefect.client.Secret(gh_pat or "GH_PAT").get())
     flow_run_id = gh_repo or prefect.context.get("flow_run_id")
     run_params = prefect.context.get("parameters")
+    harvest_config = run_params.get("config", {})
     if new_state.is_failed():
         now = datetime.datetime.utcnow().isoformat()
 
         issue = github_task_issue_formatter(task_obj, new_state, now)
         issue.setdefault(
-            "assignees", assignees or run_params.get("assignees", [])
+            "assignees", assignees or harvest_config.get("assignees", [])
         )
-        issue.setdefault("labels", labels or run_params.get("labels", []))
+        issue.setdefault("labels", labels or harvest_config.get("labels", []))
 
         gh = Github(GH_PAT)
         repo = gh.get_repo(os.path.join(gh_org, flow_run_id))

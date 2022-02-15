@@ -65,6 +65,7 @@ def create_flow(
         max_data_chunk = Parameter("max_chunk", default="100MB")
         export_da = Parameter("export_da", default=False)
         gh_write_da = Parameter("gh_write_da", default=False)
+        error_test = Parameter("error_test", default=False)
         ooi_username = PrefectSecret("OOI_USERNAME")
         ooi_token = PrefectSecret("OOI_TOKEN")
         gh_pat = PrefectSecret("GH_PAT")
@@ -103,6 +104,7 @@ def create_flow(
             nc_files_dict,
             stream_harvest,
             max_data_chunk,
+            error_test,
             task_args={
                 "state_handlers": state_handlers,
             },

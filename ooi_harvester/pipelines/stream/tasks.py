@@ -194,8 +194,8 @@ def setup_process(response_json, target_bucket):
     return nc_files_dict
 
 
-@task(state_handlers=[])
-def data_processing(nc_files_dict, stream_harvest, max_chunk):
+@task
+def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
     logger = prefect.context.get("logger")
     stream = nc_files_dict.get("stream")
     name = stream.get("table_name")
@@ -224,6 +224,10 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk):
             is_first = False
             if idx == 0:
                 is_first = True
+                if error_test:
+                    raise FAIL(
+                        message="Error test in progress! Not actual error found here!"
+                    )
             logger.info(
                 f"*** {name} ({d.get('deployment')}) | {d.get('start_ts')} - {d.get('end_ts')} ***"
             )
