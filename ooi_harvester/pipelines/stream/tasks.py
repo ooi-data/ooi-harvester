@@ -225,9 +225,7 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
             if idx == 0:
                 is_first = True
                 if error_test:
-                    raise FAIL(
-                        message="Error test in progress! Not actual error found here!"
-                    )
+                    raise ValueError("Error test in progress! Not actual error found here!")
             logger.info(
                 f"*** {name} ({d.get('deployment')}) | {d.get('start_ts')} - {d.get('end_ts')} ***"
             )
