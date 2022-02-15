@@ -12,6 +12,7 @@ from ooi_harvester.pipelines.stream.tasks import (
     data_processing,
     finalize_data_stream,
     data_availability,
+    check_credentials,
 )
 from ooi_harvester.pipelines.stream.handlers import (
     HarvestFlowLogHandler,
@@ -20,6 +21,7 @@ from ooi_harvester.pipelines.stream.handlers import (
 from ooi_harvester.pipelines.notifications.notifications import (
     github_issue_notifier,
 )
+from ooi_harvester.settings.main import harvest_settings
 
 
 class LogHandlerSettings(BaseModel):
@@ -32,13 +34,21 @@ def create_flow(
     name="stream_harvest",
     storage=None,
     run_config=None,
-    state_handlers=None,
+    # state_handlers=None,
     schedule=None,
     issue_config: Dict[str, Any] = {},
     log_settings: Union[LogHandlerSettings, Dict[str, Any]] = {},
     **kwargs
 ) -> Flow:
 
+    default_gh_org = harvest_settings.github.data_org
+    state_handlers = [
+        github_issue_notifier(
+            gh_org=issue_config.get("gh_org", default_gh_org),
+            assignees=issue_config.get("assignees", []),
+            labels=issue_config.get("labels", []),
+        )
+    ]
     # if state_handlers is None:
     #     main_flow_sh = get_main_flow_state_handler()
     #     state_handlers = [main_flow_sh]
@@ -56,13 +66,32 @@ def create_flow(
         max_data_chunk = Parameter("max_chunk", default="100MB")
         export_da = Parameter("export_da", default=False)
 
+        cred_check = check_credentials()
+
         # Producer
         stream_harvest = get_stream_harvest(config)
-        estimated_request = setup_harvest(stream_harvest)
-        data_response = request_data(estimated_request, stream_harvest)
+        stream_harvest.set_upstream(cred_check)
+        estimated_request = setup_harvest(
+            stream_harvest,
+            task_args={
+                "state_handlers": state_handlers,
+            },
+        )
+        data_response = request_data(
+            estimated_request,
+            stream_harvest,
+            task_args={
+                "state_handlers": state_handlers,
+            },
+        )
 
         # Data checking
-        data_readiness = check_data(data_response)
+        data_readiness = check_data(
+            data_response,
+            task_args={
+                "state_handlers": state_handlers,
+            },
+        )
         response_json = get_response(data_readiness)
 
         # Process data to temp
@@ -71,23 +100,29 @@ def create_flow(
             nc_files_dict,
             stream_harvest,
             max_data_chunk,
-            state_handlers=[
-                github_issue_notifier(
-                    gh_org=issue_config.get("gh_org", "ooi-data"),
-                    assignees=issue_config.get("assignees", []),
-                    labels=issue_config.get("labels", []),
-                )
-            ],
+            task_args={
+                "state_handlers": state_handlers,
+            },
         )
 
         # Finalize data and transfer to final
         final_path = finalize_data_stream(
-            stores_dict, stream_harvest, max_data_chunk
+            stores_dict,
+            stream_harvest,
+            max_data_chunk,
+            task_args={
+                "state_handlers": state_handlers,
+            },
         )
 
         # Data availability
         availability = data_availability(
-            nc_files_dict, stream_harvest, export_da
+            nc_files_dict,
+            stream_harvest,
+            export_da,
+            task_args={
+                "state_handlers": state_handlers,
+            },
         )
         availability.set_upstream(final_path)
 

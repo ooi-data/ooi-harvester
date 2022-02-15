@@ -1,10 +1,6 @@
-from pathlib import Path
-from unittest import result
-import yaml
 import datetime
 import xarray as xr
 import dask
-import urllib
 import time
 import tempfile
 import dateutil
@@ -12,11 +8,9 @@ import fsspec
 import zarr
 import numpy as np
 import dask.array as da
-import time
 
 import prefect
-from prefect import task, Flow, Parameter
-from prefect.tasks.prefect.flow_run import create_flow_run
+from prefect import task
 from prefect.engine.signals import SKIP, FAIL, LOOP
 
 from ooi_harvester.settings import harvest_settings
@@ -43,9 +37,20 @@ from ooi_harvester.utils.github import get_status_json
 from ooi_harvester.utils.parser import (
     parse_response_thredds,
     filter_and_parse_datasets,
-    get_storage_options,
     setup_etl,
 )
+
+
+@task
+def check_credentials():
+    if harvest_settings.ooi_config.username is None:
+        raise FAIL(message="OOI_USERNAME setting missing!")
+
+    if harvest_settings.ooi_config.token is None:
+        raise FAIL(message="OOI_TOKEN setting missing!")
+
+    if harvest_settings.github.pat is None:
+        raise FAIL(message="GH_PAT setting missing!")
 
 
 @task
@@ -53,7 +58,7 @@ def get_stream_harvest(config_json):
     return StreamHarvest(**config_json)
 
 
-@task
+@task(max_retries=6, retry_delay=datetime.timedelta(minutes=10))
 def setup_harvest(stream_harvest):
     logger = prefect.context.get('logger')
     logger.info("=== Setting up data request ===")
@@ -74,8 +79,10 @@ def setup_harvest(stream_harvest):
 
     if stream_harvest.harvest_options.goldcopy:
         status_json = get_status_json(table_name, request_dt, 'failed')
+        message = "Gold Copy Harvest is not currently supported."
+        logger.warning(message)
         raise SKIP(
-            message="Gold Copy Harvest is not currently supported.",
+            message=message,
             result={"status": status_json, "message": message},
         )
     else:
@@ -88,7 +95,7 @@ def setup_harvest(stream_harvest):
             request_kwargs=dict(provenance=True),
         )
     estimated_request.setdefault("request_dt", request_dt)
-
+    logger.info("Data Harvest has been setup successfully.")
     return estimated_request
 
 
@@ -118,7 +125,7 @@ def request_data(estimated_request, stream_harvest):
 
 
 # TODO: Create state handler that update to request.yaml each time check_data is run
-@task(max_retries=50, retry_delay=datetime.timedelta(hours=1))
+@task(max_retries=6, retry_delay=datetime.timedelta(minutes=10))
 def check_data(data_response):
     logger = prefect.context.get('logger')
     logger.info("=== Checking for data readiness ===")
@@ -168,7 +175,7 @@ def check_data(data_response):
                     # Wait a minute after each request
                     time.sleep(60)
                     raise LOOP(
-                        message=f"Data is not ready for download...",
+                        message="Data is not ready for download...",
                         result=data_response,
                     )
 

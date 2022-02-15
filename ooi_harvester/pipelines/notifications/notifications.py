@@ -6,7 +6,8 @@ import textwrap
 import prefect
 from prefect import Flow, Task  # noqa
 from github import Github
-from ...utils.parser import parse_exception
+from ooi_harvester.utils.parser import parse_exception
+from ooi_harvester.settings.main import harvest_settings
 
 TrackedObjectType = Union["Flow", "Task"]
 
@@ -84,14 +85,12 @@ def github_issue_notifier(
     """
     Github issue state handler for failed task
     """
-    GH_PAT = cast(str, prefect.client.Secret(gh_pat or "GH_PAT").get())
+    GH_PAT = harvest_settings.github.pat or gh_pat
     flow_run_id = gh_repo or prefect.context.get("flow_run_id")
     if new_state.is_failed():
         now = datetime.datetime.utcnow().isoformat()
 
-        issue = github_task_issue_formatter(
-            task_obj, new_state, now
-        )
+        issue = github_task_issue_formatter(task_obj, new_state, now)
         issue.setdefault("assignees", assignees)
         issue.setdefault("labels", labels)
 

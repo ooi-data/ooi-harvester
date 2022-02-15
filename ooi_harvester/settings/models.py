@@ -1,4 +1,12 @@
 from pydantic import BaseSettings, BaseModel, Field, PyObject, validator
+import prefect
+
+
+def get_prefect_secret(key):
+    prefect_secret = prefect.client.Secret(key)
+    if prefect_secret.exists():
+        return prefect_secret.get()
+    return None
 
 
 class GithubStatusDefaults(BaseModel):
@@ -27,10 +35,28 @@ class GithubConfig(BaseSettings):
     data_org: str = Field('ooi-data')
     pat: str = Field(None, env="gh_pat")
 
+    @validator('pat')
+    def pat_prefect(cls, v):
+        if v is None:
+            return get_prefect_secret("GH_PAT")
+        return v
+
 
 class AWSConfig(BaseSettings):
     key: str = Field(None, env="aws_key")
     secret: str = Field(None, env="aws_secret")
+
+    @validator('key')
+    def key_prefect(cls, v):
+        if v is None:
+            return get_prefect_secret("AWS_KEY")
+        return v
+
+    @validator('secret')
+    def secret_prefect(cls, v):
+        if v is None:
+            return get_prefect_secret("AWS_KEY")
+        return v
 
 
 class S3Buckets(BaseModel):
@@ -57,6 +83,18 @@ class OOIConfig(BaseSettings):
         'units': 'seconds since 1900-01-01 0:0:0',
         'calendar': 'gregorian',
     }
+
+    @validator('username')
+    def username_prefect(cls, v):
+        if v is None:
+            return get_prefect_secret("OOI_USERNAME")
+        return v
+
+    @validator('token')
+    def token_prefect(cls, v):
+        if v is None:
+            return get_prefect_secret("OOI_TOKEN")
+        return v
 
 
 class StorageOptions(BaseSettings):

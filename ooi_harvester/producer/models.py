@@ -64,7 +64,8 @@ class Workflow(BaseModel):
 class StreamHarvest(BaseModel):
     instrument: str
     stream: Stream
-    assigness: List[str]
+    assignees: List[str]
+    labels: List[str]
     harvest_options: HarvestOptions
     workflow_config: Workflow
     table_name: str = None
