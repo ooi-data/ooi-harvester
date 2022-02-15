@@ -35,7 +35,7 @@ class GithubConfig(BaseSettings):
     data_org: str = Field('ooi-data')
     pat: str = Field(None, env="gh_pat")
 
-    @validator('pat')
+    @validator('pat', pre=True, always=True)
     def pat_prefect(cls, v):
         if v is None:
             return get_prefect_secret("GH_PAT")
@@ -46,13 +46,13 @@ class AWSConfig(BaseSettings):
     key: str = Field(None, env="aws_key")
     secret: str = Field(None, env="aws_secret")
 
-    @validator('key')
+    @validator('key', pre=True, always=True)
     def key_prefect(cls, v):
         if v is None:
             return get_prefect_secret("AWS_KEY")
         return v
 
-    @validator('secret')
+    @validator('secret', pre=True, always=True)
     def secret_prefect(cls, v):
         if v is None:
             return get_prefect_secret("AWS_KEY")
@@ -84,13 +84,13 @@ class OOIConfig(BaseSettings):
         'calendar': 'gregorian',
     }
 
-    @validator('username')
+    @validator('username', pre=True, always=True)
     def username_prefect(cls, v):
         if v is None:
             return get_prefect_secret("OOI_USERNAME")
         return v
 
-    @validator('token')
+    @validator('token', pre=True, always=True)
     def token_prefect(cls, v):
         if v is None:
             return get_prefect_secret("OOI_TOKEN")
