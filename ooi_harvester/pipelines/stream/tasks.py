@@ -42,16 +42,9 @@ from ooi_harvester.utils.parser import (
 
 
 @task
-def check_credentials():
-    if harvest_settings.ooi_config.username is None:
-        raise FAIL(message="OOI_USERNAME setting missing!")
-
-    if harvest_settings.ooi_config.token is None:
-        raise FAIL(message="OOI_TOKEN setting missing!")
-
-    if harvest_settings.github.pat is None:
-        raise FAIL(message="GH_PAT setting missing!")
-
+def set_credentials(ooi_username, ooi_token):
+    harvest_settings.ooi_config.username = ooi_username
+    harvest_settings.ooi_config.token = ooi_token
 
 @task
 def get_stream_harvest(config_json):

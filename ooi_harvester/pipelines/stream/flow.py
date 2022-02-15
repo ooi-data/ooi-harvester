@@ -1,9 +1,11 @@
 from prefect import Flow, Parameter
 from prefect.utilities.logging import get_logger
+from prefect.tasks.secrets import PrefectSecret
 from pydantic import BaseModel
 from typing import Dict, Any, Union
 from ooi_harvester.pipelines.stream.tasks import (
     get_stream_harvest,
+    set_credentials,
     setup_harvest,
     request_data,
     check_data,
@@ -12,7 +14,6 @@ from ooi_harvester.pipelines.stream.tasks import (
     data_processing,
     finalize_data_stream,
     data_availability,
-    check_credentials,
 )
 from ooi_harvester.pipelines.stream.handlers import (
     HarvestFlowLogHandler,
@@ -65,12 +66,14 @@ def create_flow(
         target_bucket = Parameter("target_bucket", default="s3://ooi-data")
         max_data_chunk = Parameter("max_chunk", default="100MB")
         export_da = Parameter("export_da", default=False)
+        ooi_username = PrefectSecret("OOI_USERNAME")
+        ooi_token = PrefectSecret("OOI_TOKEN")
 
-        cred_check = check_credentials()
+        set_creds = set_credentials(ooi_username, ooi_token)
 
         # Producer
         stream_harvest = get_stream_harvest(config)
-        stream_harvest.set_upstream(cred_check)
+        stream_harvest.set_upstream(set_creds)
         estimated_request = setup_harvest(
             stream_harvest,
             task_args={

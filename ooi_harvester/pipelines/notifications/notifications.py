@@ -85,7 +85,7 @@ def github_issue_notifier(
     """
     Github issue state handler for failed task
     """
-    GH_PAT = harvest_settings.github.pat or gh_pat
+    GH_PAT = cast(str, prefect.client.Secret(gh_pat or "GH_PAT").get())
     flow_run_id = gh_repo or prefect.context.get("flow_run_id")
     if new_state.is_failed():
         now = datetime.datetime.utcnow().isoformat()
