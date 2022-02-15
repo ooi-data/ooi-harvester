@@ -55,7 +55,7 @@ def github_task_issue_formatter(
     task_obj: Task,
     state: "prefect.engine.state.State",
     now: datetime.datetime,
-) -> dict:
+) -> Optional[dict]:
     result = state.result
     flow_run_id = prefect.context.get("flow_run_id")
     flow_name = prefect.context.get("flow_name")
@@ -63,12 +63,8 @@ def github_task_issue_formatter(
     if isinstance(state.result, Exception):
         exc_dict = parse_exception(result)
         issue = get_issue(flow_name, flow_run_id, task_name, exc_dict, now)
-    else:
-        raise TypeError(
-            f"Invalid result type of {type(result)}, must be an Exception."
-        )
-
-    return issue
+        return issue
+    return None
 
 
 @curry
@@ -99,12 +95,15 @@ def github_issue_notifier(
         now = datetime.datetime.utcnow().isoformat()
 
         issue = github_task_issue_formatter(task_obj, new_state, now)
-        issue.setdefault(
-            "assignees", assignees or harvest_config.get("assignees", [])
-        )
-        issue.setdefault("labels", labels or harvest_config.get("labels", []))
+        if issue is not None:
+            issue.setdefault(
+                "assignees", assignees or harvest_config.get("assignees", [])
+            )
+            issue.setdefault(
+                "labels", labels or harvest_config.get("labels", [])
+            )
 
-        gh = Github(GH_PAT)
-        repo = gh.get_repo(os.path.join(gh_org, gh_repo))
-        repo.create_issue(**issue)
+            gh = Github(GH_PAT)
+            repo = gh.get_repo('/'.join([gh_org, gh_repo]))
+            repo.create_issue(**issue)
     return new_state
