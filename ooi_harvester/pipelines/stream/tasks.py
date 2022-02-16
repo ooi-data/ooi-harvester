@@ -42,13 +42,6 @@ from ooi_harvester.utils.parser import (
 
 
 @task
-def set_credentials(ooi_username, ooi_token, gh_pat):
-    harvest_settings.ooi_config.username = ooi_username
-    harvest_settings.ooi_config.token = ooi_token
-    harvest_settings.github.pat = gh_pat
-
-
-@task
 def get_stream_harvest(config_json):
     return StreamHarvest(**config_json)
 
@@ -314,7 +307,7 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
 @task
 def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
     logger = prefect.context.get("logger")
-    logger.info(f"=== Finalizing data stream. ===")
+    logger.info("=== Finalizing data stream. ===")
     final_store = fsspec.get_mapper(
         stores_dict.get("final_path"),
         **stream_harvest.harvest_options.path_settings,

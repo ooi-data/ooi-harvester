@@ -66,15 +66,9 @@ def create_flow(
         export_da = Parameter("export_da", default=False)
         gh_write_da = Parameter("gh_write_da", default=False)
         error_test = Parameter("error_test", default=False)
-        ooi_username = PrefectSecret("OOI_USERNAME")
-        ooi_token = PrefectSecret("OOI_TOKEN")
-        gh_pat = PrefectSecret("GH_PAT")
-
-        set_creds = set_credentials(ooi_username, ooi_token, gh_pat)
 
         # Producer
         stream_harvest = get_stream_harvest(config)
-        stream_harvest.set_upstream(set_creds)
         estimated_request = setup_harvest(
             stream_harvest,
             task_args={
