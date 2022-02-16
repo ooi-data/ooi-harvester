@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from typing import Dict, Any, Union
 from ooi_harvester.pipelines.stream.tasks import (
     get_stream_harvest,
-    set_credentials,
     setup_harvest,
     request_data,
     check_data,
