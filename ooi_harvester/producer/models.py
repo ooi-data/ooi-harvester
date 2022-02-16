@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from pydantic import BaseModel, validator
@@ -16,8 +16,8 @@ class Stream(BaseModel):
 
 
 class HarvestRange(BaseModel):
-    start: str = None
-    end: str = None
+    start: Optional[str]
+    end: Optional[str]
 
     @validator('start')
     def start_isoformat(cls, v):
@@ -64,11 +64,11 @@ class Workflow(BaseModel):
 class StreamHarvest(BaseModel):
     instrument: str
     stream: Stream
-    assignees: List[str]
-    labels: List[str]
+    assignees: Optional[List[str]]
+    labels: Optional[List[str]]
     harvest_options: HarvestOptions
     workflow_config: Workflow
-    table_name: str = None
+    table_name: Optional[str]
 
     @validator('instrument')
     def instrument_must_exists(cls, v):
