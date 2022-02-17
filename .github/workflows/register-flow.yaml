@@ -59,4 +59,4 @@ jobs:
           prefect auth login --key ${{ secrets.PREFECT_TOKEN }}
 
           # Run flow
-          python .ci/register-flow.py
+          prefect register -p .ci/register-flow.py --project ${{ env.PREFECT_PROJECT }}
