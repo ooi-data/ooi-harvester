@@ -1,0 +1,62 @@
+name: Pipeline Registration
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: 3.8
+  CONDA_ENV: harvester
+  PREFECT_PROJECT: ooi-harvest
+
+jobs:
+  register:
+    name: Register Prefect Flow
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.GH_PAT }}
+      - name: Setup python
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      - name: Cache conda
+        uses: actions/cache@v2
+        env:
+          # Increase this value to reset cache if environment.yaml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.ci/environment.yaml') }}
+      - name: Setup miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: ${{ env.CONDA_ENV }}
+          environment-file: .ci/environment.yaml
+          python-version: ${{ env.PYTHON_VERSION }}
+          auto-activate-base: false
+          use-only-tar-bz2: true
+      - name: Print conda env
+        shell: bash -l {0}
+        run: |
+          conda info
+          conda list
+      - name: Run flow registration
+        shell: bash -l {0}
+        run: |
+          # Make prefect dir
+          mkdir ~/.prefect
+          
+          # Login
+          prefect auth login --key ${{ secrets.PREFECT_TOKEN }}
+
+          # Run flow
+          python .ci/register-flow.py

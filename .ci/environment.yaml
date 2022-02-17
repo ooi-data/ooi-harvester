@@ -1,0 +1,26 @@
+name: harvester
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pip=22
+  - fsspec
+  - s3fs
+  - dask
+  - loguru
+  - pandas
+  - progressbar2
+  - typer
+  - zarr
+  - xarray
+  - lxml
+  - gspread
+  - fastparquet
+  - pygithub
+  - siphon
+  - prefect
+  - rechunker
+  - flatten-dict
+  - pip:
+      - git+https://github.com/ooi-data/ooi-harvester.git@main
