@@ -1,7 +1,9 @@
+FROM pangeo/pangeo-notebook
+
 ARG PYTHON_VERSION="3.8"
 
-FROM pangeo/pangeo-notebook
 USER root
+RUN echo "Python version: ${PYTHON_VERSION}"
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y && \
     apt-get install -y tzdata
