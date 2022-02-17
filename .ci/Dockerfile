@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION="3.9"
+ARG PYTHON_VERSION="3.8"
 
 FROM pangeo/pangeo-notebook
 USER root
