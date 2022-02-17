@@ -43,7 +43,7 @@ def create_flow(
 
     default_gh_org = harvest_settings.github.data_org
 
-    issue_config = issue_config.setdefault("gh_org", default_gh_org)
+    issue_config.setdefault("gh_org", default_gh_org)
 
     state_handlers = [github_issue_notifier(**issue_config)]
     # if state_handlers is None:
