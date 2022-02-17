@@ -29,4 +29,7 @@ docker_storage = Docker(
     },
 )
 
-flow = create_flow(storage=docker_storage)
+flow = create_flow(storage=docker_storage, issue_config={
+    "assignees": ["lsetiawan"],
+    "labels": ["harvest"]
+})

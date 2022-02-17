@@ -42,11 +42,10 @@ def create_flow(
 ) -> Flow:
 
     default_gh_org = harvest_settings.github.data_org
-    state_handlers = [
-        github_issue_notifier(
-            gh_org=issue_config.get("gh_org", default_gh_org),
-        )
-    ]
+
+    issue_config = issue_config.setdefault("gh_org", default_gh_org)
+
+    state_handlers = [github_issue_notifier(**issue_config)]
     # if state_handlers is None:
     #     main_flow_sh = get_main_flow_state_handler()
     #     state_handlers = [main_flow_sh]
