@@ -1,8 +1,8 @@
 from prefect import Flow, Parameter
 from prefect.utilities.logging import get_logger
-from prefect.tasks.secrets import PrefectSecret
+from prefect.core.parameter import no_default
 from pydantic import BaseModel
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Optional
 from ooi_harvester.pipelines.stream.tasks import (
     get_stream_harvest,
     setup_harvest,
@@ -30,10 +30,20 @@ class LogHandlerSettings(BaseModel):
     bucket_name: str = "io2data-harvest-cache"
 
 
+class FlowParameters(BaseModel):
+    config: Optional[Dict[str, Any]]
+    target_bucket: str = "s3://ooi-data"
+    max_chunk: str = "100MB"
+    export_da: bool = False
+    gh_write_da: bool = False
+    error_test: bool = False
+
+
 def create_flow(
     name="stream_harvest",
     storage=None,
     run_config=None,
+    default_params: Union[FlowParameters, Dict[str, Any]] = {},
     # state_handlers=None,
     schedule=None,
     issue_config: Dict[str, Any] = {},
@@ -50,6 +60,17 @@ def create_flow(
     #     main_flow_sh = get_main_flow_state_handler()
     #     state_handlers = [main_flow_sh]
 
+    # Check default_params
+    if isinstance(default_params, dict):
+        default_params = FlowParameters(**default_params)
+
+    # Sets the defaults for flow config
+    config_required = False
+    if default_params.config is None:
+        config_required = True
+
+    default_dict = default_params.dict()
+
     with Flow(
         name=name,
         storage=storage,
@@ -58,12 +79,26 @@ def create_flow(
         schedule=schedule,
         **kwargs
     ) as flow:
-        config = Parameter("config", required=True)
-        target_bucket = Parameter("target_bucket", default="s3://ooi-data")
-        max_data_chunk = Parameter("max_chunk", default="100MB")
-        export_da = Parameter("export_da", default=False)
-        gh_write_da = Parameter("gh_write_da", default=False)
-        error_test = Parameter("error_test", default=False)
+        config = Parameter(
+            "config",
+            required=config_required,
+            default=default_dict.get("config", no_default),
+        )
+        target_bucket = Parameter(
+            "target_bucket", default=default_dict.get("target_bucket")
+        )
+        max_data_chunk = Parameter(
+            "max_chunk", default=default_dict.get("max_chunk")
+        )
+        export_da = Parameter(
+            "export_da", default=default_dict.get("export_da")
+        )
+        gh_write_da = Parameter(
+            "gh_write_da", default=default_dict.get("gh_write_da")
+        )
+        error_test = Parameter(
+            "error_test", default=default_dict.get("error_test")
+        )
 
         # Producer
         stream_harvest = get_stream_harvest(config)
