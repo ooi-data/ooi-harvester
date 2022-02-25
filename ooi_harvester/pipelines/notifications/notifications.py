@@ -23,7 +23,7 @@ def get_issue(stream_name, flow_name, flow_run_id, task_name, exc_dict, now):
 
         Stream name: `{stream_name}`
         Flow name: `{flow_name}`
-        Flow run: `{flow_run_id}`
+        Flow run: [`{flow_run_id}`](https://cloud.prefect.io/ooica/flow-run/{flow_run_id})
         Task name: `{task_name}`
         Error type: `{exc_type}`
         Error message: {exc_value}
