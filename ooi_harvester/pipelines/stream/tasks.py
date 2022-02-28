@@ -218,7 +218,9 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
             if idx == 0:
                 is_first = True
                 if error_test:
-                    raise ValueError("Error test in progress! Not actual error found here!")
+                    raise ValueError(
+                        "Error test in progress! Not actual error found here!"
+                    )
             logger.info(
                 f"*** {name} ({d.get('deployment')}) | {d.get('start_ts')} - {d.get('end_ts')} ***"
             )
@@ -308,8 +310,9 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
 def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
     logger = prefect.context.get("logger")
     logger.info("=== Finalizing data stream. ===")
+    final_path = stores_dict.get('final_path')
     final_store = fsspec.get_mapper(
-        stores_dict.get("final_path"),
+        final_path,
         **stream_harvest.harvest_options.path_settings,
     )
     temp_store = fsspec.get_mapper(
@@ -338,23 +341,30 @@ def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
             backend_kwargs={'consolidated': True},
             decode_times=False,
         )
-        mod_ds, _ = chunk_ds(temp_ds, max_chunk=max_chunk)
-        mod_ds.to_zarr(
-            final_store,
-            consolidated=True,
-            compute=True,
-            mode='a',
-            append_dim='time',
-        )
-        # append_to_zarr(mod_ds, final_store, enc, logger=logger)
+        mod_ds, enc = chunk_ds(temp_ds, max_chunk=max_chunk)
+        succeed = append_to_zarr(mod_ds, final_store, enc, logger=logger)
+        if succeed:
+            is_done = False
+            while not is_done:
+                store = fsspec.get_mapper(
+                    final_path,
+                    **stream_harvest.harvest_options.path_settings,
+                )
+                is_done = is_zarr_ready(store)
+                if is_done:
+                    continue
+                time.sleep(5)
+                logger.info("Waiting for zarr file writing to finish...")
+        else:
+            raise FAIL(f"Issues in file found for {final_path}!")
 
     # Update start and end date in global attributes
     _update_time_coverage(final_store)
 
     # Clean up temp_store
     temp_store.clear()
-    logger.info(f"Data stream finalized: {stores_dict.get('final_path')}")
-    return stores_dict.get("final_path")
+    logger.info(f"Data stream finalized: {final_path}")
+    return final_path
 
 
 @task
