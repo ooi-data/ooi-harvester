@@ -39,6 +39,7 @@ def _update_time_coverage(store: fsspec.mapping.FSMap) -> None:
     zg.attrs['time_coverage_start'] = str(start)
     zg.attrs['time_coverage_end'] = str(end)
     zarr.consolidate_metadata(store)
+    return str(start), str(end)
 
 
 def finalize_data_stream(
@@ -391,12 +392,17 @@ def append_to_zarr(mod_ds, store, encoding, logger=None):
         logger.info("Reindexing dataset to append ...")
         mod_ds = mod_ds.reindex(dim_indexer)
 
+    # Remove append_dim duplicates by checking for existing tail
+    append_dim = 'time'
+    if existing_zarr[append_dim][-1] == mod_ds[append_dim].data[0]:
+        mod_ds = mod_ds.drop_isel({append_dim: 0})
+
     mod_ds.to_zarr(
         store,
         consolidated=True,
         compute=True,
         mode='a',
-        append_dim='time',
+        append_dim=append_dim,
     )
 
     return True

@@ -301,3 +301,7 @@ def write_to_s3(outpath, fname, content, FS):
     FS.put(fname, s3out)
     if FS.exists(s3out):
         os.unlink(fname)
+
+
+def get_status():
+    ...

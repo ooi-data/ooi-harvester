@@ -267,7 +267,7 @@ def perform_request(
     name = req['stream']['table_name']
 
     refresh_text = 'refresh' if refresh else 'daily'
-    datestr = f"{TODAY_DATE:%Y%m}" if refresh else f"{TODAY_DATE:%Y%m%dT%H}"
+    datestr = f"{TODAY_DATE:%Y%m}" if refresh else f"{TODAY_DATE:%Y%m%dT%H%M}"
     fname = f"{name}__{datestr}__{refresh_text}"
     fs = fsspec.filesystem(
         HARVEST_CACHE_BUCKET.split(":")[0],
@@ -293,6 +293,7 @@ def perform_request(
         with fs.open(fpath, mode='w') as f:
             json.dump(response, f)
 
+    response.setdefault("file_path", fpath)
     return response
 
 
