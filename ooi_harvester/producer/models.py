@@ -1,5 +1,6 @@
-from typing import List, Optional
+from typing import List, Literal, Optional, Dict, Any
 from datetime import datetime
+from copy import deepcopy
 
 from pydantic import BaseModel, validator
 
@@ -43,9 +44,9 @@ class HarvestRange(BaseModel):
 
 
 class HarvestOptions(BaseModel):
-    refresh: bool
-    test: bool
     path: str
+    refresh: bool = False
+    test: bool = False
     goldcopy: bool = False
     path_settings: dict = {}
     custom_range: HarvestRange = HarvestRange()
@@ -61,6 +62,62 @@ class Workflow(BaseModel):
     schedule: str
 
 
+class HarvestStatus(BaseModel):
+    status: Literal[
+        "started", "pending", "failed", "success", "discontinued", "unknown"
+    ] = "unknown"
+    last_updated: Optional[str]
+    # OOI Data request information
+    data_ready: bool = False
+    data_response: Optional[str]
+    requested_at: Optional[str]
+    # Cloud data information
+    process_status: Optional[Literal["pending", "failed", "success"]]
+    cloud_location: Optional[str]
+    start_date: Optional[str]
+    end_date: Optional[str]
+    processed_at: Optional[str]
+    last_refresh: Optional[str]
+    data_check: bool = False
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.last_updated = datetime.utcnow().isoformat()
+
+    @validator('processed_at')
+    def processed_at_isoformat(cls, v):
+        try:
+            if v:
+                datetime.fromisoformat(v)
+            return v
+        except Exception:
+            raise ValueError(
+                'processed_at is not in ISO 8601 format (yyyy-MM-ddTHH:mm:ss.SSS)'
+            )
+
+    @validator('last_refresh')
+    def last_refresh_isoformat(cls, v):
+        try:
+            if v:
+                datetime.fromisoformat(v)
+            return v
+        except Exception:
+            raise ValueError(
+                'last_refresh is not in ISO 8601 format (yyyy-MM-ddTHH:mm:ss.SSS)'
+            )
+
+    @validator('requested_at')
+    def requested_at_isoformat(cls, v):
+        try:
+            if v:
+                datetime.fromisoformat(v)
+            return v
+        except Exception:
+            raise ValueError(
+                'requested_at is not in ISO 8601 format (yyyy-MM-ddTHH:mm:ss.SSS)'
+            )
+
+
 class StreamHarvest(BaseModel):
     instrument: str
     stream: Stream
@@ -69,6 +126,20 @@ class StreamHarvest(BaseModel):
     harvest_options: HarvestOptions
     workflow_config: Workflow
     table_name: Optional[str]
+    _status: HarvestStatus
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._status = HarvestStatus()
+
+    @property
+    def status(self):
+        return self._status
+
+    def update_status(self, status_input: Dict[str, Any]):
+        new_status = deepcopy(self._status.dict())
+        new_status.update(status_input)
+        self._status = HarvestStatus(**new_status)
 
     @validator('instrument')
     def instrument_must_exists(cls, v):
@@ -86,3 +157,6 @@ class StreamHarvest(BaseModel):
                     values['stream'].name,
                 ]
             )
+
+    class Config:
+        underscore_attrs_are_private = True
