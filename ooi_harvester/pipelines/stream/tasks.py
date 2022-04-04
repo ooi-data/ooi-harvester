@@ -182,9 +182,9 @@ def get_stream_harvest(
         if 'refresh' in harvest_options:
             override = True
         config_json['harvest_options'].update(harvest_options)
-
     stream_harvest = StreamHarvest(**config_json)
     stream_harvest = read_status_json(stream_harvest)
+    logger.info(f"Refresh flag: {stream_harvest.harvest_options.refresh}")
     if stream_harvest.status.last_refresh is not None:
         logger.info(
             f"Cloud data last refreshed on {stream_harvest.status.last_refresh}"
@@ -196,8 +196,6 @@ def get_stream_harvest(
                 stream_harvest.harvest_options.refresh = False
         elif override is False:
             stream_harvest.harvest_options.refresh = True
-
-        logger.info(f"Refresh flag: {stream_harvest.harvest_options.refresh}")
     else:
         stream_harvest.harvest_options.refresh = True
     return stream_harvest
