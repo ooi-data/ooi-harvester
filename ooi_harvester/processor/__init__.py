@@ -171,7 +171,9 @@ def process_dataset(
                 time.sleep(5)
                 logger.info("Waiting for zarr file writing to finish...")
         else:
-            logger.warning(f"SKIPPED: Issues in file found for {d.get('name')}!")
+            logger.warning(
+                f"SKIPPED: Issues in file found for {d.get('name')}!"
+            )
 
         delete_netcdf(ncpath, logger=logger)
     else:
@@ -206,6 +208,24 @@ def preproc(ds):
     return rawds
 
 
+def _tens_counts(num: int, places: int = 2) -> int:
+    return (math.floor(math.log10(abs(num))) + 1) - places
+
+
+def _round_up(to_round: int) -> int:
+    """Rounds up integers to whole zeros"""
+    digit_round = 10 ** _tens_counts(to_round)
+    if to_round % digit_round == 0:
+        return to_round
+    return (digit_round - to_round % digit_round) + to_round
+
+
+def _round_down(to_round: int) -> int:
+    """Rounds down integers to whole zeros"""
+    digit_round = 10 ** _tens_counts(to_round)
+    return to_round - to_round % digit_round
+
+
 def _calc_chunks(variable: xr.DataArray, max_chunk='100MB'):
     """Dynamically figure out chunk based on max chunk size"""
     max_chunk_size = dask.utils.parse_bytes(max_chunk)
@@ -216,7 +236,7 @@ def _calc_chunks(variable: xr.DataArray, max_chunk='100MB'):
         time_chunk = math.ceil(
             max_chunk_size / prod(dim_shape.values()) / variable.dtype.itemsize
         )
-        dim_shape['time'] = time_chunk
+        dim_shape['time'] = _round_up(time_chunk)
     chunks = tuple(dim_shape[d] for d in list(variable.dims))
     return chunks
 
@@ -382,7 +402,9 @@ def append_to_zarr(mod_ds, store, encoding, logger=None):
     )
 
     if len(issue_dims) > 0:
-        logger.warning(f"{','.join(issue_dims)} dimension(s) are problematic. Skipping append...")
+        logger.warning(
+            f"{','.join(issue_dims)} dimension(s) are problematic. Skipping append..."
+        )
         return False
 
     if modify_zarr_dims:
