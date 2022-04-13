@@ -242,7 +242,11 @@ def _calc_chunks(variable: xr.DataArray, max_chunk='100MB'):
 
 
 def chunk_ds(
-    chunked_ds, max_chunk='100MB', time_max_chunks='100MB', existing_enc=None
+    chunked_ds,
+    max_chunk='100MB',
+    time_max_chunks='100MB',
+    existing_enc=None,
+    apply=True,
 ):
     compress = zarr.Blosc(cname="zstd", clevel=3, shuffle=2)
 
@@ -270,13 +274,14 @@ def chunk_ds(
         raise ValueError("existing encoding only accepts dictionary!")
 
     # Chunk the actual xr dataset
-    for k, v in chunked_ds.variables.items():
-        encoding = raw_enc.get(k, None)
-        var_chunks = {}
-        if isinstance(encoding, dict):
-            var_chunks = encoding['chunks']
+    if apply:
+        for k, v in chunked_ds.variables.items():
+            encoding = raw_enc.get(k, None)
+            var_chunks = {}
+            if isinstance(encoding, dict):
+                var_chunks = encoding['chunks']
 
-        chunked_ds[k] = chunked_ds[k].chunk(chunks=var_chunks)
+            chunked_ds[k] = chunked_ds[k].chunk(chunks=var_chunks)
 
     return chunked_ds, raw_enc
 
@@ -425,6 +430,7 @@ def append_to_zarr(mod_ds, store, encoding, logger=None):
         compute=True,
         mode='a',
         append_dim=append_dim,
+        safe_chunks=False,
     )
 
     return True

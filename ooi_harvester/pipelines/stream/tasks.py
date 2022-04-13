@@ -468,7 +468,7 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
                                 nc_files_dict.get('retrieved_dt'),
                             )
                         )
-                        logger.info(f"Finished preprocessing dataset.")
+                        logger.info("Finished preprocessing dataset.")
 
                         # Chunk dataset and write to zarr
                         if isinstance(ds, xr.Dataset):
@@ -476,8 +476,9 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
                                 ds,
                                 max_chunk=max_chunk,
                                 existing_enc=existing_enc,
+                                apply=is_first
                             )
-                            logger.info(f"Finished chunking dataset.")
+                            logger.info("Finished chunking dataset.")
 
                             if is_first:
                                 # TODO: Like the _prepare_ds_to_append need to check on the dims and len for all variables
@@ -565,7 +566,7 @@ def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
                 backend_kwargs={'consolidated': True},
                 decode_times=False,
             )
-            mod_ds, enc = chunk_ds(temp_ds, max_chunk=max_chunk)
+            mod_ds, enc = chunk_ds(temp_ds, max_chunk=max_chunk, apply=False)
             succeed = append_to_zarr(mod_ds, final_store, enc, logger=logger)
             if succeed:
                 is_done = False
