@@ -236,7 +236,7 @@ def _calc_chunks(variable: xr.DataArray, max_chunk='100MB'):
         time_chunk = math.ceil(
             max_chunk_size / prod(dim_shape.values()) / variable.dtype.itemsize
         )
-        dim_shape['time'] = _round_up(time_chunk)
+        dim_shape['time'] = _round_down(time_chunk)
     chunks = tuple(dim_shape[d] for d in list(variable.dims))
     return chunks
 
