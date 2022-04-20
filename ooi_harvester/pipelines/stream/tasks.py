@@ -560,13 +560,15 @@ def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
             # Copy over the store, at this point, they should be similar
             zarr.copy_store(temp_store, final_store, if_exists='replace')
         else:
+            zg = zarr.open_consolidated(final_store)
+            existing_enc = {k: _get_var_encoding(var) for k, var in zg.arrays()}
             temp_ds = xr.open_dataset(
                 temp_store,
                 engine='zarr',
                 backend_kwargs={'consolidated': True},
                 decode_times=False,
             )
-            mod_ds, enc = chunk_ds(temp_ds, max_chunk=max_chunk, apply=False)
+            mod_ds, enc = chunk_ds(temp_ds, max_chunk=max_chunk, apply=False, existing_enc=existing_enc)
             succeed = append_to_zarr(mod_ds, final_store, enc, logger=logger)
             if succeed:
                 is_done = False
