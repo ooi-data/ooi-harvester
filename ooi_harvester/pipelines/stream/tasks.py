@@ -431,12 +431,18 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
         )
         zg = zarr.open_consolidated(final_store)
         existing_enc = {k: _get_var_encoding(var) for k, var in zg.arrays()}
+        # change "temp" to the actual final when daily append
+        temp_zarr = final_zarr
+        temp_store = final_store
 
     if len(dataset_list) > 0:
         for idx, d in enumerate(dataset_list):
             is_first = False
             if idx == 0:
-                is_first = True
+                if stream_harvest.harvest_options.refresh:
+                    # Append to live data when it's daily
+                    # So it's never the first
+                    is_first = True
                 if error_test:
                     status_json.update({'process_status': 'failed'})
                     update_and_write_status(stream_harvest, status_json)
@@ -559,45 +565,49 @@ def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
 
             # Copy over the store, at this point, they should be similar
             zarr.copy_store(temp_store, final_store, if_exists='replace')
-        else:
-            zg = zarr.open_consolidated(final_store)
-            existing_enc = {k: _get_var_encoding(var) for k, var in zg.arrays()}
-            temp_ds = xr.open_dataset(
-                temp_store,
-                engine='zarr',
-                backend_kwargs={'consolidated': True},
-                decode_times=False,
-            )
-            mod_ds, enc = chunk_ds(temp_ds, max_chunk=max_chunk, apply=False, existing_enc=existing_enc)
-            succeed = append_to_zarr(mod_ds, final_store, enc, logger=logger)
-            if succeed:
-                is_done = False
-                while not is_done:
-                    store = fsspec.get_mapper(
-                        final_path,
-                        **stream_harvest.harvest_options.path_settings,
-                    )
-                    is_done = is_zarr_ready(store)
-                    if is_done:
-                        continue
-                    time.sleep(5)
-                    logger.info("Waiting for zarr file writing to finish...")
-            else:
-                status_json.update(
-                    {
-                        'process_status': 'failed',
-                        'cloud_location': final_path,
-                        'processed_at': datetime.datetime.utcnow().isoformat(),
-                    }
-                )
-                update_and_write_status(stream_harvest, status_json)
-                raise FAIL(f"Issues in file found for {final_path}!")
+        # NOTE: Comment out since append to live data happened during
+        # data_processing task
+        # else:
+        #     zg = zarr.open_consolidated(final_store)
+        #     existing_enc = {k: _get_var_encoding(var) for k, var in zg.arrays()}
+        #     temp_ds = xr.open_dataset(
+        #         temp_store,
+        #         engine='zarr',
+        #         backend_kwargs={'consolidated': True},
+        #         decode_times=False,
+        #     )
+        #     mod_ds, enc = chunk_ds(temp_ds, max_chunk=max_chunk, apply=False, existing_enc=existing_enc)
+        #     succeed = append_to_zarr(mod_ds, final_store, enc, logger=logger)
+        #     if succeed:
+        #         is_done = False
+        #         while not is_done:
+        #             store = fsspec.get_mapper(
+        #                 final_path,
+        #                 **stream_harvest.harvest_options.path_settings,
+        #             )
+        #             is_done = is_zarr_ready(store)
+        #             if is_done:
+        #                 continue
+        #             time.sleep(5)
+        #             logger.info("Waiting for zarr file writing to finish...")
+        #     else:
+        #         status_json.update(
+        #             {
+        #                 'process_status': 'failed',
+        #                 'cloud_location': final_path,
+        #                 'processed_at': datetime.datetime.utcnow().isoformat(),
+        #             }
+        #         )
+        #         update_and_write_status(stream_harvest, status_json)
+        #         raise FAIL(f"Issues in file found for {final_path}!")
 
         # Update start and end date in global attributes
         start_dt, end_dt = _update_time_coverage(final_store)
 
-        # Clean up temp_store
-        temp_store.clear()
+        if stream_harvest.harvest_options.refresh:
+            # Clean up temp_store
+            # no temp store was created during daily append
+            temp_store.clear()
         logger.info(f"Data stream finalized: {final_path}")
         status_json.update(
             {
