@@ -97,12 +97,12 @@ def create_flow(
         target_bucket = Parameter(
             "target_bucket", default=default_dict.get("target_bucket")
         )
-        export_da = Parameter(
-            "export_da", default=default_dict.get("export_da")
-        )
-        gh_write_da = Parameter(
-            "gh_write_da", default=default_dict.get("gh_write_da")
-        )
+        # export_da = Parameter(
+        #     "export_da", default=default_dict.get("export_da")
+        # )
+        # gh_write_da = Parameter(
+        #     "gh_write_da", default=default_dict.get("gh_write_da")
+        # )
 
         stream_harvest = get_stream_harvest(config, harvest_options)
         is_requested = check_requested(stream_harvest)
@@ -157,16 +157,16 @@ def create_flow(
             # TODO: Add data validation step here!
 
             # Data availability
-            availability = data_availability(
-                nc_files_dict,
-                stream_harvest,
-                export_da,
-                gh_write_da,
-                task_args={
-                    "state_handlers": state_handlers,
-                },
-            )
-            availability.set_upstream(final_path)
+            # availability = data_availability(
+            #     nc_files_dict,
+            #     stream_harvest,
+            #     export_da,
+            #     gh_write_da,
+            #     task_args={
+            #         "state_handlers": state_handlers,
+            #     },
+            # )
+            # availability.set_upstream(final_path)
 
     task_names = [t.name for t in flow.tasks]
     if isinstance(log_settings, dict):
