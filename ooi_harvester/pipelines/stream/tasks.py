@@ -350,7 +350,7 @@ def check_data(data_response, stream_harvest):
                             'stream_harvest': stream_harvest,
                         }
                 except Exception:
-                    message = f"Data request timeout reached. Has been waiting for more than 2 days. ({str(time_since_request)})"
+                    message = f"Data request timeout reached. Has been waiting for more than 2 days. ({str(time_since_request)}) | {status_url}"
                     status_json.update(
                         {
                             'status': 'failed',
