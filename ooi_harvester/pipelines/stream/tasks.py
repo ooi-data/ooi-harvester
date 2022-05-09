@@ -358,7 +358,7 @@ def check_data(data_response, stream_harvest):
                         }
                     )
                     update_and_write_status(stream_harvest, status_json)
-                    raise FAIL(
+                    raise SKIP(
                         message=message,
                         result={"status": status_json, "message": message},
                     )
