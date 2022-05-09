@@ -329,26 +329,27 @@ def check_data(data_response, stream_harvest):
                 - dateutil.parser.parse(data_response['result']['request_dt'])
             )
             if time_since_request >= datetime.timedelta(days=2):
-                catalog_dict = parse_response_thredds(data_response)
-                filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
-                if len(filtered_catalog_dict['datasets']) > 0:
-                    logger.info(
-                        "Data request timeout reached. But nc files are still available."
-                    )
-                    status_json.update(
-                        {
-                            'status': 'success',
-                            'data_ready': True,
+                try:
+                    catalog_dict = parse_response_thredds(data_response)
+                    filtered_catalog_dict = filter_and_parse_datasets(catalog_dict)
+                    if len(filtered_catalog_dict['datasets']) > 0:
+                        logger.info(
+                            "Data request timeout reached. But nc files are still available."
+                        )
+                        status_json.update(
+                            {
+                                'status': 'success',
+                                'data_ready': True,
+                            }
+                        )
+                        stream_harvest = update_and_write_status(
+                            stream_harvest, status_json
+                        )
+                        return {
+                            'data_response': data_response,
+                            'stream_harvest': stream_harvest,
                         }
-                    )
-                    stream_harvest = update_and_write_status(
-                        stream_harvest, status_json
-                    )
-                    return {
-                        'data_response': data_response,
-                        'stream_harvest': stream_harvest,
-                    }
-                else:
+                except Exception:
                     message = f"Data request timeout reached. Has been waiting for more than 2 days. ({str(time_since_request)})"
                     status_json.update(
                         {
