@@ -6,6 +6,7 @@ import re
 import zarr
 import fsspec
 import requests
+from requests.adapters import HTTPAdapter
 import xarray as xr
 import pandas as pd
 from lxml import html
@@ -19,11 +20,33 @@ from ..utils.parser import (
 )
 from ooi_harvester.settings.main import harvest_settings
 
+DEFAULT_TIMEOUT = 5 # seconds
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+    def __init__(self, *args, **kwargs):
+        self.timeout = DEFAULT_TIMEOUT
+        if "timeout" in kwargs:
+            self.timeout = kwargs["timeout"]
+            del kwargs["timeout"]
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        timeout = kwargs.get("timeout")
+        if timeout is None:
+            kwargs["timeout"] = self.timeout
+        return super().send(request, **kwargs)
+
 SESSION = requests.Session()
-a = requests.adapters.HTTPAdapter(
-    max_retries=1000, pool_connections=1000, pool_maxsize=1000
+# No retries! Just throw failures
+adapter = HTTPAdapter(
+    max_retries=0,
+    pool_connections=1000,
+    pool_maxsize=1000,
 )
-SESSION.mount("https://", a)
+# Times out after 15 min if no response is received from server!
+timeout_adapter =  TimeoutHTTPAdapter(timeout=900)
+SESSION.mount("https://", adapter)
+SESSION.mount("https://", timeout_adapter)
 
 
 # OOI FOCUSED =====================================================
@@ -178,11 +201,11 @@ def fetch_streams(inst):
 
 
 def fetch_url(
-    prepped_request, session=None, timeout=120, stream=False, **kwargs
+    prepped_request, session=None, stream=False, **kwargs
 ):
 
     session = session or requests.Session()
-    r = session.send(prepped_request, timeout=timeout, stream=stream, **kwargs)
+    r = session.send(prepped_request, stream=stream, **kwargs)
 
     if r.status_code == 200:
         logger.debug(f"URL fetch {prepped_request.url} successful.")
@@ -215,11 +238,20 @@ def send_request(url, params=None, username=None, token=None):
         prepped_request = requests.Request(
             "GET", url, params=params, auth=(username, token)
         ).prepare()
+        request_dt = datetime.datetime.utcnow().isoformat()
         r = fetch_url(prepped_request, session=SESSION)
-        if isinstance(r, requests.Response):
-            return r.json()
+        if r.status_code == 200:
+            result = r.json()
+        else:
+            result = {
+                'status_code': r.status_code,
+                'reason': r.reason
+            }
+        result.setdefault('request_dt', request_dt)
+        return result
     except Exception as e:
         logger.warning(e)
+        return None
 
 
 def request_data(

@@ -268,17 +268,39 @@ def request_data(
             logger=logger,
             storage_options=stream_harvest.harvest_options.path_settings,
         )
-        status_json.update(
-            {
-                'status': 'pending',
-                'data_ready': False,
-                'data_response': request_response.get("file_path"),
-                'requested_at': request_response['result']['request_dt'],
-                'data_check': True
-            }
-        )
-        update_and_write_status(stream_harvest, status_json)
-        return request_response
+        result = request_response.get('result', None)
+        if result is None or 'status_code' in result:
+            logger.info("Writing out data request status to failed ...")
+            status_json.update(
+                {
+                    'status': 'failed',
+                    'data_ready': False,
+                    'data_response': request_response.get("file_path"),
+                    'requested_at': datetime.datetime.utcnow() if result is None else result.get("request_dt"),
+                    'data_check': False
+                }
+            )
+            update_and_write_status(stream_harvest, status_json)
+            if result is None:
+                message="Error found with ooi-harvester during request"
+            else:
+                message=f"Error found with OOI M2M during request: ({result.get('status_code')}) {result.get('reason')}"
+            raise FAIL(
+                message=message,
+                result={"status": status_json, "message": message},
+            )
+        else:
+            status_json.update(
+                {
+                    'status': 'pending',
+                    'data_ready': False,
+                    'data_response': request_response.get("file_path"),
+                    'requested_at': request_response['result']['request_dt'],
+                    'data_check': True
+                }
+            )
+            update_and_write_status(stream_harvest, status_json)
+            return request_response
     else:
         logger.info("Writing out status to failed ...")
         status_json.update({'status': 'failed'})

@@ -49,23 +49,25 @@ def estimate_size_and_time(raw):
 
 
 def parse_uframe_response(resp):
-    if "allURLs" in resp:
-        return {
-            "request_id": resp["requestUUID"],
-            "thredds_catalog": resp["allURLs"][0],
-            "download_catalog": resp["allURLs"][1],
-            "status_url": resp["allURLs"][1] + "/status.txt",
-            "data_size": resp["sizeCalculation"],
-            "estimated_time": resp["timeCalculation"],
-            "units": {
-                "data_size": "bytes",
-                "estimated_time": "seconds",
-                "request_dt": "UTC",
-            },
-            "request_dt": datetime.datetime.utcnow().isoformat(),
-        }
-    logger.warning(resp)
-    return None
+    if resp is not None:
+        if "allURLs" in resp:
+            return {
+                "request_id": resp["requestUUID"],
+                "thredds_catalog": resp["allURLs"][0],
+                "download_catalog": resp["allURLs"][1],
+                "status_url": resp["allURLs"][1] + "/status.txt",
+                "data_size": resp["sizeCalculation"],
+                "estimated_time": resp["timeCalculation"],
+                "units": {
+                    "data_size": "bytes",
+                    "estimated_time": "seconds",
+                    "request_dt": "UTC",
+                },
+                "request_dt": resp["request_dt"],
+            }
+        else:
+            logger.warning(resp)
+    return resp
 
 
 def param_change(name):
