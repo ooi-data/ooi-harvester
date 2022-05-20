@@ -2,7 +2,7 @@ import os
 import datetime
 import math
 import traceback
-from typing import List
+from typing import Dict, List, Any
 
 import requests
 from loguru import logger
@@ -156,17 +156,15 @@ def parse_dataset_element(d, namespace):
     return dataset_dict
 
 
-def parse_response_thredds(response):
-    stream_name = response['stream']['table_name']
+def parse_ooi_data_catalog(catalog_url) -> Dict[Any, Any]:
     catalog = TDSCatalog(
-        response['result']['thredds_catalog'].replace('.html', '.xml')
+        catalog_url.replace('.html', '.xml')
     )
     catalog_dict = {
-        'stream_name': stream_name,
         'catalog_url': catalog.catalog_url,
         'base_tds_url': catalog.base_tds_url,
-        'async_url': response['result']['download_catalog'],
     }
+
     req = requests.get(catalog.catalog_url)
     catalog_root = etree.fromstring(req.content)
 
@@ -187,21 +185,28 @@ def parse_response_thredds(response):
     return catalog_dict
 
 
-def filter_and_parse_datasets(cat):
-    import re
+def parse_response_thredds(response) -> Dict[Any, Any]:
+    stream_name = response['stream']['table_name']
+    catalog_dict = parse_ooi_data_catalog(response['result']['thredds_catalog'])
+    catalog_dict.update({
+        'stream_name': stream_name,
+        'async_url': response['result']['download_catalog'],
+    })
+    return catalog_dict
 
-    stream_cat = cat.copy()
-    name = stream_cat['stream_name']
+
+def filter_ooi_datasets(datasets, stream_name):
+    import re
     provenance_files = []
     filtered_datasets = []
-    for d in stream_cat['datasets']:
+    for d in datasets:
         m = re.search(
             r'(deployment(\d{4})_(%s)_(\d{4}\d{2}\d{2}T\d+.\d+)-(\d{4}\d{2}\d{2}T\d+.\d+).nc)'  # noqa
-            % (name),
+            % (stream_name),
             str(d['name']),
         )
         prov = re.search(
-            r'(deployment(\d{4})_(%s)_aggregate_provenance.json)' % (name),
+            r'(deployment(\d{4})_(%s)_aggregate_provenance.json)' % (stream_name),
             str(d['name']),
         )
         if m:
@@ -214,6 +219,14 @@ def filter_and_parse_datasets(cat):
             _, dep_num, _ = prov.groups()
             provenance = dict(deployment=int(dep_num), **d)
             provenance_files.append(provenance)
+    
+    return provenance_files, filtered_datasets
+
+
+def filter_and_parse_datasets(cat):
+    stream_cat = cat.copy()
+    name = stream_cat['stream_name']
+    provenance_files, filtered_datasets = filter_ooi_datasets(stream_cat['datasets'], name)
 
     total_bytes = np.sum([d['size_bytes'] for d in filtered_datasets])
     stream_cat['datasets'] = filtered_datasets

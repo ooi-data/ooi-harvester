@@ -10,6 +10,7 @@ import pandas as pd
 from siphon.catalog import TDSCatalog
 import numpy as np
 from dateutil import parser
+from uuid import uuid4
 
 from ..config import HARVEST_CACHE_BUCKET
 from ..utils.conn import request_data, check_zarr, send_request
@@ -28,7 +29,12 @@ from ooi_harvester.utils.parser import (
     filter_and_parse_datasets,
     filter_datasets_by_time,
     memory_repr,
+    filter_ooi_datasets,
+    parse_ooi_data_catalog
 )
+
+BASE_THREDDS = "https://opendap-west.oceanobservatories.org/thredds/catalog/ooi"
+BASE_ASYNC = "https://downloads-west.oceanobservatories.org/async_results"
 
 
 def fetch_streams_list(stream_harvest: StreamHarvest) -> list:
@@ -260,6 +266,59 @@ def _sort_and_filter_estimated_requests(estimated_requests):
     }
 
 
+def check_data_catalog_readiness(datasets):
+    try:
+        next(filter(lambda d: 'status.txt' in d['name'], datasets))
+        return True
+    except StopIteration:
+        return False
+
+
+def check_thredds_cache(stream_name: str):
+    """
+    Parameters
+    ----------
+    stream_name : str
+        stream table name
+    """
+    ooi_email = os.environ.get('OOI_EMAIL', 'ooicatest@gmail.com')
+    catalog = TDSCatalog(
+        f"{BASE_THREDDS}/{ooi_email}/catalog.html".replace('.html', '.xml')
+    )
+    ref_keys = sorted([ref for ref in catalog.catalog_refs if stream_name in ref], reverse=True)
+    catalog_refs = {}
+    result = None
+    for ref in ref_keys:
+        cat = catalog.catalog_refs[ref]
+        catalog_dict = parse_ooi_data_catalog(cat.href)
+        catalog_refs[ref] = catalog_dict
+        datasets = catalog_dict['datasets']
+        ready = check_data_catalog_readiness(datasets)
+        if ready:
+            _, datasets = filter_ooi_datasets(datasets, stream_name)
+            data_range = parser.parse(datasets[-1]['start_ts']), parser.parse(datasets[0]['end_ts'])
+            data_timedelta = data_range[-1] - data_range[0]
+            # If the amount of data is greater than 90 days
+            # use it!
+            if data_timedelta.days > 90:
+                result = {
+                    "request_id": f"cache-{str(uuid4())}",
+                    "thredds_catalog": cat.href,
+                    "download_catalog": f"{BASE_ASYNC}/{ooi_email}/{cat.title}",
+                    "status_url": f"{BASE_ASYNC}/{ooi_email}/{cat.title}/status.txt",
+                    "data_size": sum(d['size_bytes'] for d in datasets),
+                    "estimated_time": 0,
+                    "units": {
+                        "data_size": "bytes",
+                        "estimated_time": "seconds",
+                        "request_dt": "UTC"
+                    },
+                    "request_dt": datetime.datetime.utcnow().isoformat()
+                }
+                break
+    return result
+
+
 def perform_request(
     req, refresh=False, logger=logger, storage_options={}
 ):
@@ -283,11 +342,21 @@ def perform_request(
         with fs.open(fpath, mode='r') as f:
             response = json.load(f)
     else:
-        logger.info(f"Requesting {name}")
-        response = dict(
+        result = None
+        if refresh:
+            # Only check thredds during refresh!
+            result = check_thredds_cache(name)
+
+        if result is None:
+            logger.info(f"Requesting {name}")
             result=parse_uframe_response(
                 send_request(req["url"], params=req["params"])
-            ),
+            )
+        else:
+            logger.info("Cache found in OOI Thredds, using those!")
+        
+        response = dict(
+            result=result,
             **req,
         )
         with fs.open(fpath, mode='w') as f:
