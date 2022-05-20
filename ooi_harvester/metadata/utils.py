@@ -4,6 +4,7 @@ import json
 import itertools as it
 
 import dask
+import dask.dataframe as dd
 import fsspec
 import gspread
 from loguru import logger
@@ -359,7 +360,7 @@ def write_parquet(df, s3path):
 
 
 def df2parquet(df, table_name, bucket):
-    ddf = dask.dataframe.from_pandas(df, npartitions=len(df) / 1000)
+    ddf = dd.from_pandas(df, npartitions=len(df) / 1000)
     s3path = os.path.join(bucket, table_name)
     write_parquet(ddf, s3path)
 

@@ -3,11 +3,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.7
+  - python=3.8
   - pip
   - fsspec
   - requests
-  - s3fs>=0.5
+  - s3fs
   - dask
   - loguru
   - pandas
