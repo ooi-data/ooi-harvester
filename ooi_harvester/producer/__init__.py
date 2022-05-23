@@ -296,26 +296,27 @@ def check_thredds_cache(stream_name: str):
         ready = check_data_catalog_readiness(datasets)
         if ready:
             _, datasets = filter_ooi_datasets(datasets, stream_name)
-            data_range = parser.parse(datasets[-1]['start_ts']), parser.parse(datasets[0]['end_ts'])
-            data_timedelta = data_range[-1] - data_range[0]
-            # If the amount of data is greater than 90 days
-            # use it!
-            if data_timedelta.days > 90:
-                result = {
-                    "request_id": f"cache-{str(uuid4())}",
-                    "thredds_catalog": cat.href,
-                    "download_catalog": f"{BASE_ASYNC}/{ooi_email}/{cat.title}",
-                    "status_url": f"{BASE_ASYNC}/{ooi_email}/{cat.title}/status.txt",
-                    "data_size": sum(d['size_bytes'] for d in datasets),
-                    "estimated_time": 0,
-                    "units": {
-                        "data_size": "bytes",
-                        "estimated_time": "seconds",
-                        "request_dt": "UTC"
-                    },
-                    "request_dt": datetime.datetime.utcnow().isoformat()
-                }
-                break
+            if len(datasets) > 0:
+                data_range = parser.parse(datasets[-1]['start_ts']), parser.parse(datasets[0]['end_ts'])
+                data_timedelta = data_range[-1] - data_range[0]
+                # If the amount of data is greater than 90 days
+                # use it!
+                if data_timedelta.days > 90:
+                    result = {
+                        "request_id": f"cache-{str(uuid4())}",
+                        "thredds_catalog": cat.href,
+                        "download_catalog": f"{BASE_ASYNC}/{ooi_email}/{cat.title}",
+                        "status_url": f"{BASE_ASYNC}/{ooi_email}/{cat.title}/status.txt",
+                        "data_size": sum(d['size_bytes'] for d in datasets),
+                        "estimated_time": 0,
+                        "units": {
+                            "data_size": "bytes",
+                            "estimated_time": "seconds",
+                            "request_dt": "UTC"
+                        },
+                        "request_dt": datetime.datetime.utcnow().isoformat()
+                    }
+                    break
     return result
 
 
