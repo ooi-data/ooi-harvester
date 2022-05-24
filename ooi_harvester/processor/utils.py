@@ -2,6 +2,7 @@ import os
 import zarr
 import numpy as np
 import xarray as xr
+import requests
 from loguru import logger
 import json
 import fsspec
@@ -48,19 +49,21 @@ def _write_data_avail(avail_dict, gh_write=False):
                     json_path, ref=harvest_settings.github.main_branch
                 )
 
-                json_content = json.loads(contents.decoded_content)
-                if avail_dict['data_stream'] in json_content:
-                    json_content.update(stream_content)
-                else:
-                    json_content = dict(**json_content, **stream_content)
+                resp = requests.get(contents.download_url)
+                if resp.status_code == 200:
+                    json_content = resp.json()
+                    if avail_dict['data_stream'] in json_content:
+                        json_content.update(stream_content)
+                    else:
+                        json_content = dict(**json_content, **stream_content)
 
-                repo.update_file(
-                    path=contents.path,
-                    message=f"⬆️ Updated {k} data availability for {avail_dict['inst_rd']}",
-                    content=json.dumps(json_content, cls=NumpyEncoder),
-                    sha=contents.sha,
-                    branch=harvest_settings.github.main_branch,
-                )
+                    repo.update_file(
+                        path=contents.path,
+                        message=f"⬆️ Updated {k} data availability for {avail_dict['inst_rd']}",
+                        content=json.dumps(json_content, cls=NumpyEncoder),
+                        sha=contents.sha,
+                        branch=harvest_settings.github.main_branch,
+                    )
             except Exception as e:
                 json_content = stream_content
                 response = e.args[1]
