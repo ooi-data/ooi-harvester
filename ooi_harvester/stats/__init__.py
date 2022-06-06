@@ -92,7 +92,7 @@ def create_stream_dct(data_stream):
 
 def create_stats(s3_bucket: str = 'ooi-data'):
     resp = requests.get(
-        'https://api.interactiveoceans.washington.edu/metadata/instruments'
+        'https://api.ooica.net/metadata/instruments'
     )
     instruments = resp.json()
     instrument_refs = [i['reference_designator'] for i in instruments]
