@@ -97,12 +97,15 @@ def create_flow(
         target_bucket = Parameter(
             "target_bucket", default=default_dict.get("target_bucket")
         )
-        # export_da = Parameter(
-        #     "export_da", default=default_dict.get("export_da")
-        # )
-        # gh_write_da = Parameter(
-        #     "gh_write_da", default=default_dict.get("gh_write_da")
-        # )
+        export_da = Parameter(
+            "export_da", default=default_dict.get("export_da")
+        )
+        gh_write_da = Parameter(
+            "gh_write_da", default=default_dict.get("gh_write_da")
+        )
+        force_harvest = Parameter(
+            "force_harvest", default=False
+        )
 
         stream_harvest = get_stream_harvest(config, harvest_options)
         is_requested = check_requested(stream_harvest)
@@ -115,7 +118,7 @@ def create_flow(
                     "state_handlers": state_handlers,
                 },
             )
-            request_response = request_data(estimated_request, stream_harvest)
+            request_response = request_data(estimated_request, stream_harvest, force_harvest)
 
         with case(is_requested, True):
             # Get request response directly here
@@ -157,16 +160,16 @@ def create_flow(
             # TODO: Add data validation step here!
 
             # Data availability
-            # availability = data_availability(
-            #     nc_files_dict,
-            #     stream_harvest,
-            #     export_da,
-            #     gh_write_da,
-            #     task_args={
-            #         "state_handlers": state_handlers,
-            #     },
-            # )
-            # availability.set_upstream(final_path)
+            availability = data_availability(
+                nc_files_dict,
+                stream_harvest,
+                export_da,
+                gh_write_da,
+                task_args={
+                    "state_handlers": state_handlers,
+                },
+            )
+            availability.set_upstream(final_path)
 
     task_names = [t.name for t in flow.tasks]
     if isinstance(log_settings, dict):

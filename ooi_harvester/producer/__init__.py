@@ -321,7 +321,7 @@ def check_thredds_cache(stream_name: str):
 
 
 def perform_request(
-    req, refresh=False, logger=logger, storage_options={}
+    req, refresh=False, logger=logger, storage_options={}, force=False
 ):
     TODAY_DATE = datetime.datetime.utcnow()
     name = req['stream']['table_name']
@@ -344,7 +344,7 @@ def perform_request(
             response = json.load(f)
     else:
         result = None
-        if refresh:
+        if refresh and not force:
             # Only check thredds during refresh!
             result = check_thredds_cache(name)
 

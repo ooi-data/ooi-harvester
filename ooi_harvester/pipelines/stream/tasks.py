@@ -255,7 +255,9 @@ def setup_harvest(stream_harvest: StreamHarvest):
 # TODO: Save request_response to response.json
 @task
 def request_data(
-    estimated_request: Dict[str, Any], stream_harvest: StreamHarvest
+    estimated_request: Dict[str, Any],
+    stream_harvest: StreamHarvest,
+    force_harvest: bool = False
 ):
     logger = prefect.context.get('logger')
     status_json = stream_harvest.status.dict()
@@ -267,6 +269,7 @@ def request_data(
             refresh=stream_harvest.harvest_options.refresh,
             logger=logger,
             storage_options=stream_harvest.harvest_options.path_settings,
+            force=force_harvest
         )
         result = request_response.get('result', None)
         if result is None or 'status_code' in result:
