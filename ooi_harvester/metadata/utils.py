@@ -360,7 +360,10 @@ def write_parquet(df, s3path):
 
 
 def df2parquet(df, table_name, bucket):
-    ddf = dd.from_pandas(df, npartitions=int(len(df) / 1000))
+    npartitions = int(len(df) / 1000)
+    if npartitions <= 0:
+        npartitions = 1
+    ddf = dd.from_pandas(df, npartitions=npartitions)
     s3path = os.path.join(bucket, table_name)
     write_parquet(ddf, s3path)
 
