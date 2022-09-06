@@ -20,7 +20,7 @@ dependencies:
   - fastparquet
   - pygithub
   - siphon
-  - prefect
+  - prefect<2
   - rechunker
   - flatten-dict
   - pip:
