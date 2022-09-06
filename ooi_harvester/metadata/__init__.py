@@ -140,7 +140,10 @@ def create_metadata(
     # Get global ranges
     if global_ranges_refresh:
         grdf = get_global_ranges()
-        grddf = dask.dataframe.from_pandas(grdf, npartitions=len(grdf) / 1000)
+        npartitions = int(len(grdf) / 1000)
+        if npartitions <= 0:
+            npartitions = 1
+        grddf = dask.dataframe.from_pandas(grdf, npartitions=npartitions)
         grpath = os.path.join(bucket, 'global_ranges')
         write_parquet(grddf, grpath)
 
