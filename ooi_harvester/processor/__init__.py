@@ -189,12 +189,13 @@ def is_zarr_ready(store):
 
 
 def preproc(ds):
+    logger.info("Preprocessing dataset...")
     if 'obs' in ds.dims:
         rawds = ds.swap_dims({'obs': 'time'}).reset_coords(drop=True)
     else:
         rawds = ds
-    for v in rawds.variables:
-        var = rawds[v]
+    string_variables = []
+    for v, var in rawds.variables.items():
         if (
             not np.issubdtype(var.dtype, np.number)
             and not np.issubdtype(var.dtype, np.datetime64)
@@ -204,7 +205,10 @@ def preproc(ds):
                 not coding.strings.is_unicode_dtype(var.dtype)
                 or var.dtype == object
             ):
-                rawds[v] = var.astype(str)
+                string_variables.append(v)
+    # Drop variables that contains strings.. not necessary data.
+    logger.info(f"Removing variables containing strings: {','.join(string_variables)}")
+    rawds = rawds.drop_vars(string_variables, errors='ignore')
     return rawds
 
 
