@@ -707,14 +707,20 @@ def data_availability(
             ddf['count'] = 0
 
             resolutions = {'hourly': 'H', 'daily': 'D', 'monthly': 'M'}
+            result_dict = {}
+            for k, v in resolutions.items():
+                try:
+                    result = _fetch_avail_dict(ddf, resolution=v)
+                    result_dict.update({ k: result })
+                except Exception as e:
+                    if k == 'daily':
+                        raise e
+                    logger.warning(f"ERROR: Creation of {k} data availability :: {e}")
 
             avail_dict = {
                 'data_stream': stream_rd,
                 'inst_rd': inst_rd,
-                'results': {
-                    k: _fetch_avail_dict(ddf, resolution=v)
-                    for k, v in resolutions.items()
-                },
+                'results': result_dict,
             }
             if export:
                 _write_data_avail(avail_dict, gh_write=gh_write)
