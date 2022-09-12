@@ -428,14 +428,18 @@ def append_to_zarr(mod_ds, store, encoding, logger=None):
     if existing_zarr[append_dim][-1] == mod_ds[append_dim].data[0]:
         mod_ds = mod_ds.drop_isel({append_dim: 0})
 
-    mod_ds.to_zarr(
-        store,
-        consolidated=True,
-        compute=True,
-        mode='a',
-        append_dim=append_dim,
-        safe_chunks=False,
-    )
+    if mod_ds[append_dim].size == 0:
+        logger.warning("Nothing to append.")
+    else:
+        logger.info("Appending zarr file.")
+        mod_ds.to_zarr(
+            store,
+            consolidated=True,
+            compute=True,
+            mode='a',
+            append_dim=append_dim,
+            safe_chunks=False,
+        )
 
     return True
 
