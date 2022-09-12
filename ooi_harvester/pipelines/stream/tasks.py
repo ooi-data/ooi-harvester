@@ -552,7 +552,7 @@ def data_processing(nc_files_dict, stream_harvest, max_chunk, error_test):
                             logger.warning("SKIPPED: Failed pre processing!")
             except Exception as e:
                 exc_dict = parse_exception(e)
-                raise FAIL(message=e.get('traceback', str(e)), result=exc_dict)
+                raise FAIL(message=exc_dict.get('traceback', str(e)), result=exc_dict)
     else:
         raise SKIP("No datasets to process. Skipping...")
     return {
@@ -663,7 +663,7 @@ def finalize_data_stream(stores_dict, stream_harvest, max_chunk):
         )
         update_and_write_status(stream_harvest, status_json)
         exc_dict = parse_exception(e)
-        raise FAIL(message=e.get('traceback', str(e)), result=exc_dict)
+        raise FAIL(message=exc_dict.get('traceback', str(e)), result=exc_dict)
 
 
 @task
@@ -730,4 +730,4 @@ def data_availability(
             return avail_dict
     except Exception as e:
         exc_dict = parse_exception(e)
-        raise FAIL(message=e.get('traceback', str(e)), result=exc_dict)
+        raise FAIL(message=exc_dict.get('traceback', str(e)), result=exc_dict)
