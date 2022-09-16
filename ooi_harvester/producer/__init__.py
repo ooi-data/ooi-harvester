@@ -46,9 +46,12 @@ def fetch_streams_list(stream_harvest: StreamHarvest) -> list:
     ]
     streams_df, _ = get_ooi_streams_and_parameters(filtered_instruments)
     # Only get science stream
-    streams_json = streams_df[
-        streams_df.stream_type.str.match('Science')
-    ].to_json(orient='records')
+    # streams_json = streams_df[
+    #     streams_df.stream_type.str.match('Science')
+    # ].to_json(orient='records')
+    # 09/16/2022 Don.S.: Change to not filter only Science stream
+    #                    this should be done upstream.
+    streams_json = streams_df.to_json(orient='records')
     streams_list = json.loads(streams_json)
     return streams_list
 
