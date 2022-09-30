@@ -114,6 +114,7 @@ def read_cava_assets():
             "Instrument-Groups",
             "DataProduct-Groups",
             "DataProducts",
+            "Plate-Boundaries"
         ]:
             lower_name = name.lower()
             df = pd.DataFrame(ws.get_all_records())
