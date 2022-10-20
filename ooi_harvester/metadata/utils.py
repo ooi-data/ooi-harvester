@@ -114,7 +114,7 @@ def read_cava_assets():
             "Instrument-Groups",
             "DataProduct-Groups",
             "DataProducts",
-            "Plate-Boundaries"
+            "POE"
         ]:
             lower_name = name.lower()
             df = pd.DataFrame(ws.get_all_records())
@@ -460,6 +460,7 @@ def create_catalog_source(
                     and (
                         "L1" in arr_attrs["data_product_identifier"]
                         or "L2" in arr_attrs["data_product_identifier"]
+                        or "BOTSFLU" in arr_attrs["data_product_identifier"]
                     )
                 ):
                     # Remove Array Dimensions key
