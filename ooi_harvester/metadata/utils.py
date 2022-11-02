@@ -357,6 +357,7 @@ def write_parquet(df, s3path):
         f"s3://{s3path}",
         write_index=False,
         storage_options=STORAGE_OPTIONS['aws'],
+        overwrite=True
     )
 
 
