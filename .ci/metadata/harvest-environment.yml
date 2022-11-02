@@ -16,7 +16,8 @@ dependencies:
   - zarr
   - xarray
   - lxml
-  - gspread==3.6
+  - gspread
+  - google-auth-oauthlib=0.5.3
   - fastparquet
   - pygithub
   - siphon
