@@ -27,7 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Setup micromamba
-        uses: mamba-org/provision-with-micromamba@v13
+        uses: mamba-org/provision-with-micromamba@v14
         with:
           environment-file: .ci/metadata/harvest-environment.yml
           environment-name: meta_env
