@@ -432,14 +432,17 @@ def append_to_zarr(mod_ds, store, encoding, logger=None):
         logger.warning("Nothing to append.")
     else:
         logger.info("Appending zarr file.")
-        mod_ds.to_zarr(
-            store,
-            consolidated=True,
-            compute=True,
-            mode='a',
-            append_dim=append_dim,
-            safe_chunks=False,
-        )
+        # 11/17/2022 Don.S: Currently some issues with xarray to zarr with large dimensions
+        #                   See https://github.com/pydata/xarray/issues/6640
+        # mod_ds.to_zarr(
+        #     store,
+        #     consolidated=True,
+        #     compute=True,
+        #     mode='a',
+        #     append_dim=append_dim,
+        #     safe_chunks=False,
+        # )
+        _append_zarr(store, mod_ds, append_dim=append_dim, consolidated=True)
 
     return True
 
