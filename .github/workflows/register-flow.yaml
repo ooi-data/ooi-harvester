@@ -11,6 +11,7 @@ env:
   CONDA_ENV: harvester
   PREFECT_PROJECT: ooi-harvest
   ENV_FILE: .ci/environment.yaml
+  CACHE_NUMBER: 0
 
 jobs:
   register:

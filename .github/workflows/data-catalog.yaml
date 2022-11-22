@@ -10,6 +10,11 @@ on:
       - ooi_harvester/metadata/**/*
   workflow_dispatch:
 
+env:
+  ENV_FILE: .ci/metadata/harvest-environment.yml
+  CONDA_ENV: meta_env
+  CACHE_NUMBER: 0
+
 jobs:
   catalog-creation:
     runs-on: ubuntu-20.04
@@ -27,20 +32,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Cache conda
-        uses: actions/cache@v2
+      - name: Setup micromamba
+        uses: mamba-org/provision-with-micromamba@v14
         with:
-          path: ~/conda_pkgs_dir
-          key:
-            ${{ runner.os }}-conda-${{ hashFiles('.ci/metadata/harvest-environment.yml') }}
-      - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v2
-        with:
-          auto-update-conda: true
-          auto-activate-base: false
-          activate-environment: meta_env
-          environment-file: .ci/metadata/harvest-environment.yml
-          use-only-tar-bz2: true
+          environment-file: ${{ env.ENV_FILE }}
+          environment-name: ${{ env.CONDA_ENV }}
+          cache-env: true
+          cache-env-key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles(format('{0}', env.ENV_FILE)) }}
+      - name: Print conda env
+        run: |
+          conda info
+          conda list
       - name: Install package
         run: |
           pip install .

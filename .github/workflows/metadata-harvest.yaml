@@ -10,6 +10,11 @@ on:
       - ooi_harvester/metadata/**/*
   workflow_dispatch:
 
+env:
+  ENV_FILE: .ci/metadata/harvest-environment.yml
+  CONDA_ENV: meta_env
+  CACHE_NUMBER: 0
+
 jobs:
   harvest:
     runs-on: ubuntu-20.04
@@ -29,10 +34,14 @@ jobs:
       - name: Setup micromamba
         uses: mamba-org/provision-with-micromamba@v14
         with:
-          environment-file: .ci/metadata/harvest-environment.yml
-          environment-name: meta_env
+          environment-file: ${{ env.ENV_FILE }}
+          environment-name: ${{ env.CONDA_ENV }}
           cache-env: true
-          cache-env-key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.ci/metadata/harvest-environment.yml') }}
+          cache-env-key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles(format('{0}', env.ENV_FILE)) }}
+      - name: Print conda env
+        run: |
+          conda info
+          conda list
       - name: Install package
         run: |
           pip install .
