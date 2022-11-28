@@ -174,27 +174,23 @@ def get_stream_harvest(
     config_json: Dict[str, Any], harvest_options: Dict[str, Any] = {}
 ):
     logger = prefect.context.get('logger')
-    # check for day of month
-    # always refresh value when
-    # it's first of month
-    override = False
-    if len(harvest_options.keys()) > 0:
-        if 'refresh' in harvest_options:
-            override = True
-        config_json['harvest_options'].update(harvest_options)
+    config_json['harvest_options'].update(harvest_options)
     stream_harvest = StreamHarvest(**config_json)
     stream_harvest = read_status_json(stream_harvest)
     if stream_harvest.status.last_refresh is not None:
         logger.info(
             f"Cloud data last refreshed on {stream_harvest.status.last_refresh}"
         )
-        last_refresh = parser.parse(stream_harvest.status.last_refresh)
-        current_dt = datetime.datetime.utcnow()
-        if (current_dt - last_refresh) < datetime.timedelta(days=30):
-            if override is False:
-                stream_harvest.harvest_options.refresh = False
-        elif override is False:
-            stream_harvest.harvest_options.refresh = True
+        # 11/28/2022 Don.S: Comment out this section to prevent auto refresh.
+        # refresh = harvest_options.get('refresh', None)
+        # last_refresh = parser.parse(stream_harvest.status.last_refresh)
+        # current_dt = datetime.datetime.utcnow()
+        # if (current_dt - last_refresh) < datetime.timedelta(days=30):
+        #     if refresh is None:
+        #         stream_harvest.harvest_options.refresh = False
+        # elif refresh is None:
+        #     stream_harvest.harvest_options.refresh = True
+        stream_harvest.harvest_options.refresh = False
     else:
         stream_harvest.harvest_options.refresh = True
     logger.info(f"Refresh flag: {stream_harvest.harvest_options.refresh}")
