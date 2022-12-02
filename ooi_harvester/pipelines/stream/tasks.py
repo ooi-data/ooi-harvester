@@ -339,7 +339,7 @@ def get_request_response(stream_harvest: StreamHarvest, logger=None):
             **stream_harvest.harvest_options.path_settings,
         ) as f:
             request_response = json.load(f)
-    except FileNotFoundError as e:
+    except Exception as e:
         # Data response file not found
         # may be due to auto deletion by S3
         logger.warning(f"Missing data response file: {stream_harvest.status.data_response}")
