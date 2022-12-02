@@ -88,10 +88,26 @@ def read_status_json(
 
 
 def update_and_write_status(
-    stream_harvest: StreamHarvest, status_json: Dict[str, Any]
-):
+    stream_harvest: StreamHarvest,
+    status_json: Dict[str, Any],
+    write: bool = True
+) -> StreamHarvest:
+    """
+    Update the StreamHarvest object status attribute,
+    then write the status json to S3
+
+    Parameters
+    ----------
+    stream_harvest : StreamHarvest
+        The current StreamHarvest object to be modified
+    status_json : dict
+        Status dictionary to update with
+    write : bool
+        Flag to execute the S3 json writing or not
+    """
     stream_harvest.update_status(status_json)
-    write_status_json(stream_harvest)
+    if write:
+        write_status_json(stream_harvest)
     return stream_harvest
 
 
@@ -312,13 +328,51 @@ def request_data(
 
 
 @task
-def get_request_response(stream_harvest: StreamHarvest):
+def get_request_response(stream_harvest: StreamHarvest, logger=None):
+    if logger is None:
+        logger = prefect.context.get('logger')
     stream_harvest = read_status_json(stream_harvest)
-    with fsspec.open(
-        stream_harvest.status.data_response,
-        **stream_harvest.harvest_options.path_settings,
-    ) as f:
-        request_response = json.load(f)
+    try:
+        # Read the data response json from s3 cache
+        with fsspec.open(
+            stream_harvest.status.data_response,
+            **stream_harvest.harvest_options.path_settings,
+        ) as f:
+            request_response = json.load(f)
+    except FileNotFoundError as e:
+        # Data response file not found
+        # may be due to auto deletion by S3
+        logger.warning(f"Missing data response file: {stream_harvest.status.data_response}")
+        status_json = stream_harvest.status.dict()
+        if "_daily" in stream_harvest.status.data_response:
+            status_json.update(
+                {
+                    'status': 'success',
+                    'process_status': 'success',
+                    'data_check': False,
+                    'data_ready': True,
+                }
+            )
+        elif "_refresh" in stream_harvest.status.data_response:
+            status_json.update(
+                {
+                    'status': 'unknown',
+                    'process_status': None,
+                    'data_check': False,
+                    'last_refresh': None,
+                    'data_ready': False,
+                }
+            )
+        else:
+            # if neither daily or refresh raise the exception
+            raise e
+        
+        message = "Skipping for now and retrying again later due to missing data response file."
+        update_and_write_status(stream_harvest, status_json)
+        raise SKIP(
+            message=message,
+            result={"status": status_json, "message": message},
+        )
     return request_response
 
 
