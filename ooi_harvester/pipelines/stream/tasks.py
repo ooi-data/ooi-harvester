@@ -344,7 +344,9 @@ def get_request_response(stream_harvest: StreamHarvest, logger=None):
         # may be due to auto deletion by S3
         logger.warning(f"Missing data response file: {stream_harvest.status.data_response}")
         status_json = stream_harvest.status.dict()
-        if "_daily" in stream_harvest.status.data_response:
+
+        # daily harvest
+        if stream_harvest.status.data_response.endswith('daily'):
             status_json.update(
                 {
                     'status': 'success',
@@ -353,7 +355,8 @@ def get_request_response(stream_harvest: StreamHarvest, logger=None):
                     'data_ready': True,
                 }
             )
-        elif "_refresh" in stream_harvest.status.data_response:
+        # refresh harvest
+        elif stream_harvest.status.data_response.endswith('refresh'):
             status_json.update(
                 {
                     'status': 'unknown',
