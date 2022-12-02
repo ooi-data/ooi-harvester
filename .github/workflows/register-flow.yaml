@@ -11,7 +11,6 @@ env:
   CONDA_ENV: harvester
   PREFECT_PROJECT: ooi-harvest
   ENV_FILE: .ci/environment.yaml
-  CACHE_NUMBER: 0
 
 jobs:
   register:
@@ -34,8 +33,7 @@ jobs:
         with:
           environment-file: ${{ env.ENV_FILE }}
           environment-name: ${{ env.CONDA_ENV }}
-          cache-env: true
-          cache-env-key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles(format('{0}', env.ENV_FILE)) }}
+          cache-env: false
       - name: Print conda env
         run: |
           conda info
