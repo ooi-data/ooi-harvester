@@ -1,12 +1,17 @@
+import os
 from pydantic import BaseSettings, BaseModel, Field, PyObject, validator
-import prefect
+from ..utils.core import prefect_version
 
+PREFECT_VERSION = prefect_version()
 
 def get_prefect_secret(key):
-    prefect_secret = prefect.client.Secret(key)
-    if prefect_secret.exists():
-        return prefect_secret.get()
-    return None
+    if PREFECT_VERSION < (2, 0, 0):
+        import prefect
+        prefect_secret = prefect.client.Secret(key)
+        if prefect_secret.exists():
+            return prefect_secret.get()
+        return None
+    return os.environ.get(key, None)
 
 
 class GithubStatusDefaults(BaseModel):
