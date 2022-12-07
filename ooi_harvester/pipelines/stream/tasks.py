@@ -122,11 +122,14 @@ def get_readiness(data_readiness):
 
 
 def _check_stream(stream_harvest):
-    import requests
+    import json
+    from requests_html import HTMLSession
     from ooi_harvester.settings.main import harvest_settings
 
+    session = HTMLSession()
+
     site, subsite, port, inst = stream_harvest.instrument.split('-')
-    resp = requests.get(
+    resp = session.get(
         f"https://ooinet.oceanobservatories.org/api/m2m/12576/sensor/inv/{site}/{subsite}/{port}-{inst}/metadata/times",
         auth=(
             harvest_settings.ooi_config.username,
@@ -134,15 +137,23 @@ def _check_stream(stream_harvest):
         ),
     )
     if resp.status_code == 200:
-        all_streams = resp.json()
-        current_end_dt = next(
-            filter(
-                lambda s: s['stream'] == stream_harvest.stream.name
-                and s['method'] == stream_harvest.stream.method,
-                all_streams,
-            )
-        )['endTime']
-        return parser.parse(current_end_dt)
+        try:
+            all_streams = resp.json()
+            current_end_dt = next(
+                filter(
+                    lambda s: s['stream'] == stream_harvest.stream.name
+                    and s['method'] == stream_harvest.stream.method,
+                    all_streams,
+                )
+            )['endTime']
+            return parser.parse(current_end_dt)
+        except json.JSONDecodeError:
+            # If it's not JSON, get the title of the page
+            html_title = resp.html.find('title', first=True).text.lower()
+            if 'maintenance' in html_title:
+                # if there's maintainance then skip
+                raise SKIP("OOI is under maintenance!")
+
     raise SKIP("OOINet is currently down.")
 
 

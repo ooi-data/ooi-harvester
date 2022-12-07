@@ -21,6 +21,7 @@ dependencies:
   - pygithub
   - siphon
   - prefect<2
+  - requests-html
   - rechunker
   - flatten-dict
   - pip:
