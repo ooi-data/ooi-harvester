@@ -42,9 +42,18 @@ jobs:
         run: |
           # Make prefect dir
           mkdir ~/.prefect
-          
+
           # Login
-          prefect auth login --key ${{ secrets.PREFECT_TOKEN }}
+          ###prefect auth login --key ${{ secrets.PREFECT_TOKEN }}
+
+          # Set backend of prefect to server
+          prefect backend server
+          echo "[server]" >> ~/.prefect/backend.toml
+          echo "endpoint = \"http://18.246.70.121:4200\"" >> ~/.prefect/backend.toml
+
+          echo "[server]" >> ~/.prefect/config.toml
+          echo "[server_ui]" >> ~/.prefect/config.toml
+          echo "endpoint = \"http://18.246.70.121:4200\"" >> ~/.prefect/config.toml
 
           # Run flow
           prefect register -p .ci/register-flow.py --project ${{ env.PREFECT_PROJECT }}
