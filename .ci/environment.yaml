@@ -24,5 +24,6 @@ dependencies:
   - requests-html
   - rechunker
   - flatten-dict
+  - pydantic<2
   - pip:
       - git+https://github.com/ooi-data/ooi-harvester.git@main
