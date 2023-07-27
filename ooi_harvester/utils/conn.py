@@ -182,12 +182,18 @@ def retrieve_deployments(refdes):
     return deployments
 
 
-def fetch_streams(inst):
+def fetch_streams(inst): # instruments
     logger.debug(inst["reference_designator"])
     streams_list = []
+    excepted_streams_list = []
     for stream in inst["streams"]:
         newst = stream.copy()
-        newst.update(get_stream(stream["stream"]))
+        try:
+            newst.update(get_stream(stream["stream"]))
+        except KeyError as e:
+            logger.warning(f"{e} - request for {stream} may have returned code other than 200")
+            excepted_streams_list.append(stream)
+
         streams_list.append(
             dict(
                 reference_designator=inst["reference_designator"],
@@ -197,6 +203,10 @@ def fetch_streams(inst):
                 **newst,
             )
         )
+
+    if len(excepted_streams_list) != 0:
+        logger.warning(f"The streams: {excepted_streams_list} may have returned codes other than 200")
+
     return streams_list
 
 
