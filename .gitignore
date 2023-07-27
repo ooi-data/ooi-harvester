@@ -130,6 +130,7 @@ dmypy.json
 
 # vscode
 .vscode
+launch.json
 
 # misc
 test_repo/
