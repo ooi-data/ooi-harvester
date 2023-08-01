@@ -12,6 +12,8 @@ import xarray as xr
 from xarray.core.utils import either_dict_or_kwargs
 
 
+# this OOIDataset class definition is deprecated
+# use cormorack/cava-data/api/workers/models.py instead
 class OOIDataset:
     def __init__(
         self,
