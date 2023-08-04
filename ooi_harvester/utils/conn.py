@@ -191,8 +191,7 @@ def fetch_streams(inst): # instruments
         try:
             newst.update(get_stream(stream["stream"]))
         except KeyError as e:
-            logger.warning(f"{e} - request for {stream} may have returned code other than 200")
-            excepted_streams_list.append(stream)
+            logger.warning(f"{e} - request for {stream} may have returned code other than 200:")
 
         streams_list.append(
             dict(
@@ -203,9 +202,6 @@ def fetch_streams(inst): # instruments
                 **newst,
             )
         )
-
-    if len(excepted_streams_list) != 0:
-        logger.warning(f"The streams: {excepted_streams_list} may have returned codes other than 200")
 
     return streams_list
 
