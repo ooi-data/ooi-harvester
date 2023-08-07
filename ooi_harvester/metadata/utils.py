@@ -17,13 +17,20 @@ from siphon.catalog import TDSCatalog
 import zarr
 from s3fs.core import S3FileSystem
 
-from ..config import STORAGE_OPTIONS
+#from ..config import STORAGE_OPTIONS
 from ..utils.compute import map_concurrency
 from ..utils.encoders import NumpyEncoder
 from ..utils.conn import fetch_streams, retrieve_deployments
 from ..utils.parser import get_items, rename_item, parse_dataset_element
 
+STORAGE_OPTIONS = {"aws":{
+    'client_kwargs':{'endpoint_url':'http://127.0.0.1:9000'},
+    'key':'admin',
+    'secret':'password'
+}}
+
 FS = fsspec.filesystem('s3', **STORAGE_OPTIONS['aws'])
+#FS = fsspec.filesystem('s3', **STORAGE_OPTIONS['aws'])
 
 INSTRUMENT_MAP = {
     'MOP': '3-Axis Motion Pack',
