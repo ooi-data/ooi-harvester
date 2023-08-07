@@ -201,6 +201,10 @@ def get_stream_harvest(
     config_json: Dict[str, Any], harvest_options: Dict[str, Any] = {}
 ):
     logger = prefect.context.get('logger')
+    #TODO create decorator to log function arguments throughout
+    logger.debug(f"config_json{config_json}")
+    logger.debug(f"havest_options{harvest_options}")
+
     config_json['harvest_options'].update(harvest_options)
     stream_harvest = StreamHarvest(**config_json)
     stream_harvest = read_status_json(stream_harvest)
